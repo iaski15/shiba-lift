@@ -8,11 +8,11 @@ import { ExerciseList } from '../components/ExerciseList';
 import { PRPopup, type PRInfo } from '../components/PRPopup';
 import { RestTimer } from '../components/RestTimer';
 import { Btn, Card, Txt, font, useTheme } from '../components/ui';
-import { getDraft, history, makeBlock, saveWorkout, setDraft, type Draft } from '../lib/db';
+import { getDraft, history, makeBlock, saveRoutine, saveWorkout, setDraft, type Draft } from '../lib/db';
 import { isPR } from '../lib/progression';
 import { supabase } from '../lib/supabase';
 
-const REST_SECONDS = 90; // ponytail: one global rest time; per-exercise rest if people ask
+const REST_SECONDS = 120; // ponytail: one global rest time; per-exercise rest if people ask
 
 const num = (s: string) => (s.trim() === '' ? undefined : Number(s.replace(',', '.')));
 
@@ -52,7 +52,7 @@ export default function Active() {
       if (kind) x.prs = (x.prs ?? 0) + 1;
     });
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setRestEnd(Date.now() + REST_SECONDS * 1000);
+    if (!(b.linked && bi < d.blocks.length - 1)) setRestEnd(Date.now() + REST_SECONDS * 1000); // mid-superset: go straight to the next exercise
     if (kind) setPr({ kind, exercise: b.ex.name, weight, reps });
   };
 
@@ -68,12 +68,20 @@ export default function Active() {
       return Alert.alert('Could not save', String(e));
     }
     setRestEnd(null);
+    const summary = summarize(d);
     let shared = false;
     if (supabase && (await supabase.auth.getSession()).data.session) {
-      shared = !(await supabase.from('posts').insert({ title: d.name, summary: summarize(d) })).error;
+      shared = !(await supabase.from('posts').insert({ title: d.name, summary })).error;
     }
-    router.back();
-    Alert.alert('Workout saved! 🐾', shared ? 'Shared with your pack.' : (d.prs ? `${d.prs} new PR${d.prs > 1 ? 's' : ''}. Good dog.` : 'Good dog.'));
+    const { minutes, volume, sets, prs } = summary;
+    router.replace({ pathname: '/summary', params: { name: d.name, minutes, volume, sets, prs, shared: shared ? 1 : 0 } });
+  };
+
+  const saveAsRoutine = async () => {
+    const items = d.blocks.map(b => ({ id: b.ex.id, name: b.ex.name, sets: b.sets.length, linked: b.linked }));
+    const id = await saveRoutine(db, { id: d.routineId, name: d.name.trim() || 'Routine', items });
+    edit(x => { x.routineId = id; });
+    Alert.alert(d.routineId ? 'Routine updated 🐾' : 'Routine saved 🐾', `"${d.name.trim() || 'Routine'}" is on the Workout tab.`);
   };
 
   const discard = () => Alert.alert('Discard workout?', 'Nothing will be saved.', [
@@ -97,16 +105,27 @@ export default function Active() {
             placeholder="Workout name"
             placeholderTextColor={t.sub}
           />
-          {d.blocks.map((b, bi) => (
-            <Card key={bi} style={{ gap: 6 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+          {d.blocks.map((b, bi) => {
+            const linkedNext = !!b.linked && bi < d.blocks.length - 1;
+            const inSuperset = linkedNext || !!d.blocks[bi - 1]?.linked;
+            return (
+            <Card key={bi} style={[{ gap: 6 }, inSuperset && { borderLeftWidth: 6, borderLeftColor: t.superset }, linkedNext && { marginBottom: -6 }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
                 <View style={{ flex: 1 }}>
+                  {inSuperset && <Txt weight="black" size={11} color={t.superset}>🔗 SUPERSET</Txt>}
                   <Txt weight="black" size={17} color={t.primaryDark}>{b.ex.name}</Txt>
                   <Txt size={12} color={t.sub}>
                     {b.ex.rep_min}–{b.ex.rep_max} reps · +{b.ex.increment}kg at top
                     {b.sugg.length > 0 && b.sugg[b.sugg.length - 1].weight > (b.prev[b.prev.length - 1]?.weight ?? 0) ? ' · ⬆ Time to go heavier!' : ''}
                   </Txt>
                 </View>
+                {bi < d.blocks.length - 1 && (
+                  <Pressable hitSlop={10} accessibilityRole="switch" accessibilityState={{ checked: linkedNext }} accessibilityLabel="Superset with next exercise"
+                    onPress={() => edit(x => { x.blocks[bi].linked = !linkedNext; })}
+                    style={{ backgroundColor: linkedNext ? t.superset : t.line, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 }}>
+                    <Txt weight="black" size={12} color={linkedNext ? '#fff' : t.sub}>🔗 {linkedNext ? 'Linked' : 'Superset'}</Txt>
+                  </Pressable>
+                )}
                 <Pressable hitSlop={10} accessibilityLabel="Remove exercise" onPress={() => Alert.alert('Remove exercise?', b.ex.name, [
                   { text: 'Cancel', style: 'cancel' },
                   { text: 'Remove', style: 'destructive', onPress: () => edit(x => { x.blocks.splice(bi, 1); }) },
@@ -142,9 +161,11 @@ export default function Active() {
               })}
               <Btn small variant="ghost" title="+ Add set" onPress={() => edit(x => { x.blocks[bi].sets.push({ weight: '', reps: '', done: false }); })} />
             </Card>
-          ))}
+            );
+          })}
           {d.blocks.length === 0 && <Txt color={t.sub} style={{ textAlign: 'center', marginVertical: 20 }}>Add an exercise to get started 🐾</Txt>}
           <Btn title="+ Add exercise" onPress={() => setPicking(true)} />
+          {d.blocks.length > 0 && <Btn variant="ghost" title={d.routineId ? '💾 Update routine' : '💾 Save as routine'} onPress={saveAsRoutine} />}
           <Txt size={11} color={t.sub} style={{ textAlign: 'center' }}>Grey numbers are Shiba’s suggestion. Tap ✓ to use them. Long-press a set number to delete it.</Txt>
         </ScrollView>
       </KeyboardAvoidingView>

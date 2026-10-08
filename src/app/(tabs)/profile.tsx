@@ -1,10 +1,12 @@
 import { router, useFocusEffect } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useCallback, useEffect, useState } from 'react';
-import { ScrollView, View } from 'react-native';
+import * as DocumentPicker from 'expo-document-picker';
+import { Alert, ScrollView, View } from 'react-native';
 import { Shiba } from '../../components/Shiba';
 import { Btn, Card, Input, Txt, kg, useTheme } from '../../components/ui';
-import { listWorkouts, personalRecords, type PRRow, type WorkoutRow } from '../../lib/db';
+import { parseHevy } from '../../lib/csv';
+import { importWorkouts, listWorkouts, personalRecords, totals, type PRRow, type WorkoutRow } from '../../lib/db';
 import { supabase, useSession } from '../../lib/supabase';
 
 export default function Profile() {
@@ -12,11 +14,35 @@ export default function Profile() {
   const t = useTheme();
   const [workouts, setWorkouts] = useState<WorkoutRow[]>([]);
   const [prs, setPrs] = useState<PRRow[]>([]);
+  const [tot, setTot] = useState({ workouts: 0, volume: 0 });
+  const [importing, setImporting] = useState(false);
 
-  useFocusEffect(useCallback(() => {
+  const load = useCallback(() => {
     listWorkouts(db).then(setWorkouts);
     personalRecords(db).then(setPrs);
-  }, [db]));
+    totals(db).then(setTot);
+  }, [db]);
+  useFocusEffect(load);
+
+  const importHevy = async () => {
+    const pick = await DocumentPicker.getDocumentAsync({ type: '*/*', copyToCacheDirectory: true });
+    if (pick.canceled) return;
+    setImporting(true);
+    try {
+      // fetch reads the picked file:// copy; expo-file-system's File is denied READ on it in Expo Go.
+      const ws = parseHevy(await (await fetch(pick.assets[0].uri)).text());
+      if (!ws.length) throw new Error('No sets with reps found in that file.');
+      const r = await importWorkouts(db, ws);
+      load();
+      Alert.alert('Imported! 🐾', `${r.workouts} workouts · ${r.sets} sets · ${r.newExercises} new exercises` +
+        (r.skipped ? `
+${r.skipped} already imported, skipped.` : ''));
+    } catch (e) {
+      Alert.alert('Import failed', e instanceof Error ? e.message : String(e));
+    } finally {
+      setImporting(false);
+    }
+  };
 
   return (
     <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
@@ -24,14 +50,16 @@ export default function Profile() {
 
       <View style={{ flexDirection: 'row', gap: 12 }}>
         <Card style={{ flex: 1, alignItems: 'center' }}>
-          <Txt weight="black" size={26} color={t.primaryDark}>{workouts.length}</Txt>
+          <Txt weight="black" size={26} color={t.primaryDark}>{tot.workouts}</Txt>
           <Txt size={12} color={t.sub}>workouts</Txt>
         </Card>
         <Card style={{ flex: 1, alignItems: 'center' }}>
-          <Txt weight="black" size={26} color={t.primaryDark}>{(workouts.reduce((a, w) => a + w.volume, 0) / 1000).toFixed(1)}t</Txt>
+          <Txt weight="black" size={26} color={t.primaryDark}>{(tot.volume / 1000).toFixed(tot.volume >= 100000 ? 0 : 1)}t</Txt>
           <Txt size={12} color={t.sub}>total lifted</Txt>
         </Card>
       </View>
+
+      <Btn variant="ghost" title={importing ? 'Importing…' : '📥 Import Hevy workouts (CSV)'} disabled={importing} onPress={importHevy} />
 
       <Txt weight="black" size={18}>🏆 Personal records</Txt>
       <Card style={{ gap: 6 }}>

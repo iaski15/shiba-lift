@@ -2,11 +2,11 @@ import { Pressable, Text, TextInput, View, useColorScheme, type TextInputProps, 
 
 const light = {
   bg: '#FFF4E6', card: '#FFFFFF', text: '#2B2B2B', sub: '#8A7B6B', line: '#F0E2CF',
-  primary: '#E8A35A', primaryDark: '#C97F35', cream: '#FFF4E6', good: '#6BBF59', danger: '#E06B5A', input: '#FFF9F1',
+  primary: '#E8A35A', primaryDark: '#C97F35', cream: '#FFF4E6', good: '#6BBF59', danger: '#E06B5A', input: '#FFF9F1', superset: '#8E7CC3',
 };
 const dark: typeof light = {
   bg: '#1E1A17', card: '#2B2622', text: '#FFF4E6', sub: '#B8A898', line: '#3A332D',
-  primary: '#E8A35A', primaryDark: '#C97F35', cream: '#FFF4E6', good: '#6BBF59', danger: '#E06B5A', input: '#352F2A',
+  primary: '#E8A35A', primaryDark: '#C97F35', cream: '#FFF4E6', good: '#6BBF59', danger: '#E06B5A', input: '#352F2A', superset: '#A693D9',
 };
 export type Theme = typeof light;
 export const useTheme = () => (useColorScheme() === 'dark' ? dark : light);
@@ -55,4 +55,4 @@ export function Input({ style, ...p }: TextInputProps) {
   );
 }
 
-export const kg = (n: number) => `${Math.round(n * 10) / 10}kg`;
+export const kg = (n: number) => (n >= 1000 ? `${Math.round(n).toLocaleString()} kg` : `${Math.round(n * 10) / 10}kg`);

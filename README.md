@@ -28,6 +28,19 @@ In Expo Go on Android the rest timer is in-app only (Expo Go can't load `expo-no
 
 Set `REST_SECONDS` in `src/app/active.tsx` to change the rest timer.
 
+## Routines & supersets
+On the Workout tab, use **+ New routine** to build your Push / Pull / Legs: set the exercises, the number of sets, and the order (↑).
+- Tap **🔗 Superset** to link an exercise with the next one. Mid-superset the rest timer doesn't start, so you go straight to the next exercise. Rest starts after the last exercise in the group.
+- Tap a routine to start it. **💾 Save as routine** or **Update routine** on the workout screen saves your changes back to it.
+- The rest timer defaults to 2:00 (`REST_SECONDS` in `src/app/active.tsx`).
+
+## Import from Hevy
+1. In Hevy, go to **Profile → ⚙️ Settings → Export & Import Data → Export Workouts**. You get a `.csv` file.
+2. Put the file on your phone, open the **Me** tab and tap **📥 Import Hevy workouts (CSV)**.
+- Hevy exercise names that aren't in the library are added as custom ⭐ exercises with the same name. Keep using those so your history and progression carry over.
+- Cardio and timed sets (no reps) are skipped. `weight_lbs` exports are converted to kg.
+- Importing the same file again skips workouts that are already there, so it's safe to re-import a newer export.
+
 ## Checks
 ```
 npm test          # progression + PR logic

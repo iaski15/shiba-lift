@@ -8,6 +8,7 @@
     "@supabase/supabase-js": "^2.117.3",
     "expo": "~57.0.27",
     "expo-constants": "~57.0.21",
+    "expo-document-picker": "~57.0.3",
     "expo-font": "~57.0.4",
     "expo-haptics": "~57.0.3",
     "expo-linking": "~57.0.12",
@@ -36,7 +37,7 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "test": "npx --yes tsx src/lib/progression.test.ts",
+    "test": "npx --yes tsx src/lib/progression.test.ts && npx --yes tsx src/lib/csv.test.ts",
     "lint": "expo lint"
   },
   "private": true
