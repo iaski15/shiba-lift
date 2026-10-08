@@ -37,7 +37,7 @@ export default function Profile() {
       <Card style={{ gap: 6 }}>
         {prs.length === 0 && <Txt color={t.sub}>Log some sets and your PRs show up here.</Txt>}
         {prs.slice(0, 15).map(p => (
-          <View key={p.name} style={{ flexDirection: 'row' }}>
+          <View key={p.name} style={{ flexDirection: 'row', gap: 8 }}>
             <Txt style={{ flex: 1 }} numberOfLines={1}>{p.name}</Txt>
             <Txt weight="bold">{kg(p.weight)}</Txt>
             <Txt size={12} color={t.sub} style={{ width: 90, textAlign: 'right' }}>e1RM {kg(p.best)}</Txt>
@@ -51,7 +51,7 @@ export default function Profile() {
         <Card key={w.id}>
           <Txt weight="bold">{w.name}</Txt>
           <Txt size={12} color={t.sub}>
-            {new Date(w.started_at).toLocaleString()} · {Math.round((w.ended_at - w.started_at) / 60000)} min · {w.sets} sets · {kg(w.volume)}
+            {new Date(w.started_at).toLocaleString()} · {Math.round((w.ended_at - w.started_at) / 60000)} min · {w.sets} set{w.sets === 1 ? '' : 's'} · {kg(w.volume)}
           </Txt>
         </Card>
       ))}

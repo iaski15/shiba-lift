@@ -24,6 +24,8 @@ Each exercise has a rep range (8–12 by default) and an increment (2.5 kg by de
 
 Suggestions appear as grey placeholders. Tapping ✓ on an empty set uses the suggestion.
 
+In Expo Go on Android the rest timer is in-app only (Expo Go can't load `expo-notifications` there). A development build (`npx expo run:android`) also gets the background "rest over" notification.
+
 Set `REST_SECONDS` in `src/app/active.tsx` to change the rest timer.
 
 ## Checks

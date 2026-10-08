@@ -45,7 +45,7 @@ export default function Workout() {
             <Card style={{ flexDirection: 'row', alignItems: 'center' }}>
               <View style={{ flex: 1 }}>
                 <Txt weight="bold">{w.name}</Txt>
-                <Txt size={12} color={t.sub}>{new Date(w.started_at).toLocaleDateString()} · {w.sets} sets · {kg(w.volume)}</Txt>
+                <Txt size={12} color={t.sub}>{new Date(w.started_at).toLocaleDateString()} · {w.sets} set{w.sets === 1 ? '' : 's'} · {kg(w.volume)}</Txt>
               </View>
               <Txt weight="black" color={t.primary}>▶</Txt>
             </Card>

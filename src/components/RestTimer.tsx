@@ -1,16 +1,24 @@
 import * as Haptics from 'expo-haptics';
-import * as Notifications from 'expo-notifications';
 import { useEffect, useRef, useState } from 'react';
 import { Platform, Pressable, View } from 'react-native';
 import { Shiba } from './Shiba';
 import { Txt, useTheme } from './ui';
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({ shouldPlaySound: true, shouldSetBadge: false, shouldShowBanner: true, shouldShowList: true }),
-});
+// Expo Go on Android throws on importing expo-notifications (SDK 53+). There the timer is in-app only;
+// a development build gets the background "rest over" notification too.
+let Notifications: typeof import('expo-notifications') | null = null;
+try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports -- must be a guarded runtime require
+  Notifications = require('expo-notifications');
+  Notifications!.setNotificationHandler({
+    handleNotification: async () => ({ shouldPlaySound: true, shouldSetBadge: false, shouldShowBanner: true, shouldShowList: true }),
+  });
+} catch {
+  Notifications = null;
+}
 
 let asked = false;
-async function ensurePermission() {
+async function ensurePermission(Notifications: typeof import('expo-notifications')) {
   if (asked) return;
   asked = true;
   if (Platform.OS === 'android') {
@@ -29,10 +37,11 @@ export function RestTimer({ endAt, setEndAt }: { endAt: number | null; setEndAt:
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      if (!Notifications) return;
       if (notifId.current) await Notifications.cancelScheduledNotificationAsync(notifId.current);
       notifId.current = null;
       if (!endAt) return;
-      await ensurePermission();
+      await ensurePermission(Notifications);
       const seconds = Math.round((endAt - Date.now()) / 1000);
       if (cancelled || seconds < 1) return;
       notifId.current = await Notifications.scheduleNotificationAsync({

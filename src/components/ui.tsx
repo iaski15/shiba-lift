@@ -31,7 +31,7 @@ export function Btn({ title, onPress, variant = 'primary', small, disabled }: Bt
       disabled={disabled}
       style={({ pressed }) => ({
         backgroundColor: bg, opacity: disabled ? 0.5 : pressed ? 0.8 : 1, transform: [{ scale: pressed ? 0.97 : 1 }],
-        paddingVertical: small ? 8 : 14, paddingHorizontal: small ? 14 : 20, borderRadius: 999, alignItems: 'center',
+        paddingVertical: small ? 8 : 14, paddingHorizontal: small ? 14 : 20, borderRadius: 999, alignItems: 'center', justifyContent: 'center',
         borderWidth: variant === 'ghost' ? 2 : 0, borderColor: t.primary,
       })}>
       <Txt weight="black" size={small ? 13 : 16} color={fg}>{title}</Txt>
