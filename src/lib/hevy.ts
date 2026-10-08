@@ -33,26 +33,52 @@ export function toImported(w: HevyWorkout): ImportedWorkout {
   };
 }
 
-// Pulls every workout created/edited/deleted in Hevy since the last sync (first sync = everything).
+// Pulls every workout created/edited/deleted in Hevy since the last sync (first sync = everything), then checks the
+// total against Hevy's own count; if anything is missing it walks Hevy's full workout list (safe: matched by Hevy id).
 export async function syncHevy(db: SQLiteDatabase, key: string, onProgress?: (msg: string) => void) {
   const startedAt = new Date();
   const since = (await getKv(db, 'hevy_since')) ?? '1970-01-01T00:00:00Z';
   const updated: ImportedWorkout[] = [];
   const deleted: string[] = [];
   for (let page = 1, pages = 1; page <= pages; page++) {
-    onProgress?.(`Fetching from Hevy… ${page}/${pages}`);
-    const r = await hevyGet<{ page_count: number; events: HevyEvent[] }>(`/workouts/events?page=${page}&pageSize=10&since=${encodeURIComponent(since)}`, key);
+    onProgress?.(`Fetching changes… ${page}/${pages}`);
+    const r = await hevyGet<{ page_count?: number; events?: HevyEvent[] }>(`/workouts/events?page=${page}&pageSize=10&since=${encodeURIComponent(since)}`, key);
     pages = r.page_count || 1;
-    for (const e of r.events) {
+    for (const e of r.events ?? []) { // no changes: Hevy leaves `events` out
       if (e.type === 'deleted') deleted.push(e.id);
       else if (Number.isFinite(Date.parse(e.workout.start_time))) updated.push(toImported(e.workout));
     }
   }
+
   onProgress?.('Saving…');
   updated.sort((a, b) => a.start - b.start);
   const res = await importWorkouts(db, updated);
   if (deleted.length) await deleteHevyWorkouts(db, deleted);
+
+  const { workout_count: hevyTotal = 0 } = await hevyGet<{ workout_count?: number }>('/workouts/count', key);
+  const localHevy = async () => (await db.getFirstAsync<{ n: number }>('SELECT COUNT(*) AS n FROM workouts WHERE hevy_id IS NOT NULL'))!.n;
+  const before = await localHevy();
+  let backfilled = 0;
+  let listed: number | null = null;
+  let badDate = 0;
+  if (before < hevyTotal) {
+    const all: ImportedWorkout[] = [];
+    for (let page = 1, pages = 1; page <= pages; page++) {
+      onProgress?.(`Fetching all workouts… ${page}/${pages}`);
+      const r = await hevyGet<{ page_count?: number; workouts?: HevyWorkout[] }>(`/workouts?page=${page}&pageSize=10`, key);
+      pages = r.page_count || 1;
+      for (const w of r.workouts ?? []) {
+        listed = (listed ?? 0) + 1;
+        if (Number.isFinite(Date.parse(w.start_time))) all.push(toImported(w));
+        else badDate++;
+      }
+    }
+    onProgress?.('Saving…');
+    res.newExercises += (await importWorkouts(db, all.sort((a, b) => a.start - b.start))).newExercises;
+    backfilled = (await localHevy()) - before;
+  }
+
   // A minute of overlap so edits made while we were fetching aren't missed (re-applying is harmless).
   await setKv(db, 'hevy_since', new Date(startedAt.getTime() - 60_000).toISOString());
-  return { workouts: res.workouts, sets: res.sets, deleted: deleted.length, newExercises: res.newExercises };
+  return { workouts: res.workouts, sets: res.sets, deleted: deleted.length, newExercises: res.newExercises, backfilled, hevyTotal, listed, badDate, synced: await localHevy() };
 }

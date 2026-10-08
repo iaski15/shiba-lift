@@ -16,14 +16,30 @@ export function suggest(last: S[], r: Range): S[] {
   return last.map(s => (s.weight === top ? { weight: top, reps: Math.min(r.rep_max, s.reps + 1) } : s));
 }
 
-// Epley
-export const e1rm = ({ weight, reps }: S) => (reps <= 1 ? weight : weight * (1 + reps / 30));
+// Estimated 1RM = average of the 7 standard formulas (Epley, Brzycki, Lander, Lombardi, Mayhew, O'Conner, Wathan).
+// Each one is biased (Epley runs high, Brzycki low, as reps go up); the average is steadier than any single one.
+// Only sets of 1-12 reps count: past ~12 reps every formula gets unreliable, so high-rep sets give no estimate (0).
+export const E1RM_MAX_REPS = 12;
+export function e1rm({ weight: w, reps: r }: S) {
+  if (w <= 0 || r < 1 || r > E1RM_MAX_REPS) return 0;
+  if (r === 1) return w;
+  const est = [
+    w * (1 + r / 30), // Epley
+    (w * 36) / (37 - r), // Brzycki
+    (100 * w) / (101.3 - 2.67123 * r), // Lander
+    w * r ** 0.1, // Lombardi
+    (100 * w) / (52.2 + 41.9 * Math.exp(-0.055 * r)), // Mayhew
+    w * (1 + r / 40), // O'Conner
+    (100 * w) / (48.8 + 53.8 * Math.exp(-0.075 * r)), // Wathan
+  ];
+  return est.reduce((a, b) => a + b) / est.length;
+}
 
 // First time doing an exercise is not a PR (otherwise every new exercise spams the popup).
 export function isPR(set: S, history: S[]): PR | null {
   if (!history.length || set.reps <= 0) return null;
   if (set.weight > Math.max(...history.map(h => h.weight))) return 'weight';
-  if (set.weight > 0 && e1rm(set) > Math.max(...history.map(e1rm)) + 1e-9) return 'e1rm';
+  if (e1rm(set) > Math.max(0, ...history.map(e1rm)) + 1e-9) return 'e1rm';
   const atOrAbove = history.filter(h => h.weight >= set.weight);
   if (set.reps > Math.max(0, ...atOrAbove.map(h => h.reps))) return 'reps';
   return null;

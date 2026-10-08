@@ -41,9 +41,17 @@ export function HevyCard({ onSynced }: { onSynced: () => void }) {
       const r = await sync(db, key, setBusy);
       onSynced();
       await refresh();
-      Alert.alert('Synced with Hevy 🐾', r.workouts || r.deleted
-        ? `${r.workouts} workouts updated · ${r.sets} sets${r.deleted ? ` · ${r.deleted} deleted` : ''}${r.newExercises ? ` · ${r.newExercises} new exercises` : ''}`
-        : 'Already up to date.');
+      const changes = r.workouts || r.deleted || r.backfilled
+        ? [r.workouts && `${r.workouts} workouts updated (${r.sets} sets)`, r.backfilled && `${r.backfilled} missing workouts added`,
+          r.deleted && `${r.deleted} deleted`, r.newExercises && `${r.newExercises} new exercises`].filter(Boolean).join(' · ')
+        : 'Already up to date.';
+      // Hevy's count can include workouts its list never returns, so judge completeness by the list when we fetched it.
+      const total = r.listed ?? r.hevyTotal;
+      const status = r.synced >= total ? `All ${r.synced} Hevy workouts are in Shiba Lift.`
+        : `${r.synced} of ${total} Hevy workouts are in Shiba Lift${r.badDate ? ` (${r.badDate} had an unreadable date)` : ''}.`;
+      Alert.alert('Synced with Hevy 🐾', `${changes}
+
+${status}`);
     } catch (e) {
       Alert.alert('Hevy sync failed', e instanceof Error ? e.message : String(e));
     } finally {

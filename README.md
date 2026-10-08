@@ -34,6 +34,8 @@ Each exercise has a rep range (8–12 by default) and an increment (2.5 kg by de
 - If you hit the top of the range on every working set, the next workout suggests +increment at the bottom of the range.
 - Otherwise it suggests the same weight with +1 rep per set.
 
+**Estimated 1RM** is the average of 7 standard formulas (Epley, Brzycki, Lander, Lombardi, Mayhew, O'Conner, Wathan), which evens out the bias each one has. Only sets of 1–12 reps give an estimate; past 12 reps they all get unreliable, so a 20-rep set can be a reps PR but never an e1RM PR.
+
 Suggestions appear as grey placeholders. Tapping ✓ on an empty set uses the suggestion.
 
 The rest timer also sends a "rest over" notification, so you hear about it with the app in the background. It plays a soft chime (`assets/sounds/rest.wav`, regenerate with `node scripts/make-sound.js`) and uses an exact alarm so it isn't delayed.
@@ -52,6 +54,7 @@ On the Workout tab, use **+ New routine** to build your Push / Pull / Legs: set 
 - The first sync pulls your whole Hevy history. After that it syncs automatically every time the app opens, or tap **🔄 Sync now**.
 - Workouts you edit or delete in Hevy are updated or removed here too. A workout you imported earlier from CSV is replaced by its synced copy, so nothing is doubled.
 - Hevy's API has no friends or followers, so the social side stays in Shiba Lift.
+- Hevy's workout *count* can be one or two higher than the workouts its API actually lists (e.g. deleted or in-progress ones); the sync checks against the list.
 
 ## Import from Hevy (CSV, no Pro needed)
 1. In Hevy, go to **Profile → ⚙️ Settings → Export & Import Data → Export Workouts**. You get a `.csv` file.

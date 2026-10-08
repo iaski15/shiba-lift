@@ -25,5 +25,13 @@ assert.equal(isPR({ weight: 0, reps: 20 }, [{ weight: 0, reps: 15 }]), 'reps'); 
 assert.equal(isPR({ weight: 0, reps: 10 }, [{ weight: 0, reps: 15 }]), null);
 assert.equal(isPR({ weight: 100, reps: 5 }, []), null);
 assert.equal(e1rm({ weight: 100, reps: 1 }), 100);
+// 7-formula average: 100 kg x 5 lands between Brzycki (112.5) and Mayhew (~119)
+const five = e1rm({ weight: 100, reps: 5 });
+assert.ok(five > 114 && five < 117, String(five));
+assert.ok(e1rm({ weight: 100, reps: 6 }) > five); // more reps = higher estimate
+assert.equal(e1rm({ weight: 100, reps: 13 }), 0); // too many reps to estimate
+assert.equal(e1rm({ weight: 0, reps: 10 }), 0); // bodyweight
+// a 20-rep set gives no 1RM estimate, so it can only ever be a reps PR, never an e1RM PR
+assert.equal(isPR({ weight: 60, reps: 20 }, [{ weight: 100, reps: 5 }]), "reps");
 
 console.log('progression ok 🐕');

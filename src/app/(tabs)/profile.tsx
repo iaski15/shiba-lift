@@ -70,7 +70,7 @@ ${r.skipped} already imported, skipped.` : ''));
           <View key={p.name} style={{ flexDirection: 'row', gap: 8 }}>
             <Txt style={{ flex: 1 }} numberOfLines={1}>{p.name}</Txt>
             <Txt weight="bold">{kg(p.weight)}</Txt>
-            <Txt size={12} color={t.sub} style={{ width: 90, textAlign: 'right' }}>e1RM {kg(p.best)}</Txt>
+            <Txt size={12} color={t.sub} style={{ width: 90, textAlign: 'right' }}>{p.best ? `e1RM ${kg(Math.round(p.best * 2) / 2)}` : ''}</Txt>
           </View>
         ))}
       </Card>

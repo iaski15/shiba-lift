@@ -1,5 +1,5 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
-import { suggest, type S } from './progression';
+import { e1rm, suggest, type S } from './progression';
 
 export type Exercise = {
   id: string;
@@ -114,10 +114,20 @@ export const workoutExercises = (db: SQLiteDatabase, workoutId: number) =>
     WHERE s.workout_id = ? GROUP BY e.id ORDER BY MIN(s.id)`, workoutId);
 
 export type PRRow = { name: string; weight: number; best: number };
-export const personalRecords = (db: SQLiteDatabase) =>
-  db.getAllAsync<PRRow>(`SELECT e.name, MAX(s.weight) AS weight,
-    MAX(CASE WHEN s.reps <= 1 THEN s.weight ELSE s.weight * (1 + s.reps / 30.0) END) AS best
-    FROM sets s JOIN exercises e ON e.id = s.exercise_id GROUP BY e.id ORDER BY best DESC`);
+// Best reps at each weight per exercise is enough to find both the heaviest weight and the best estimated 1RM.
+export async function personalRecords(db: SQLiteDatabase): Promise<PRRow[]> {
+  const rows = await db.getAllAsync<{ id: string; name: string; weight: number; reps: number }>(
+    `SELECT e.id, e.name, s.weight, MAX(s.reps) AS reps FROM sets s JOIN exercises e ON e.id = s.exercise_id GROUP BY e.id, s.weight`,
+  );
+  const byEx = new Map<string, PRRow>();
+  for (const r of rows) {
+    const p = byEx.get(r.id) ?? { name: r.name, weight: 0, best: 0 };
+    p.weight = Math.max(p.weight, r.weight);
+    p.best = Math.max(p.best, e1rm(r));
+    byEx.set(r.id, p);
+  }
+  return [...byEx.values()].sort((a, b) => b.best - a.best || b.weight - a.weight);
+}
 
 // In-progress workout survives app kills.
 export const getDraft = async (db: SQLiteDatabase) => {
