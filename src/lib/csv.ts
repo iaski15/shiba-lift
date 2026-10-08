@@ -2,7 +2,8 @@
 // title,start_time,end_time,description,exercise_title,superset_id,exercise_notes,set_index,set_type,weight_kg|weight_lbs,reps,…
 
 export type ImportedSet = { exercise: string; weight: number; reps: number };
-export type ImportedWorkout = { name: string; start: number; end: number; sets: ImportedSet[] };
+// hevyId set = came from the Hevy API: replaces any existing copy (incl. a CSV-imported one) instead of being skipped.
+export type ImportedWorkout = { name: string; start: number; end: number; sets: ImportedSet[]; hevyId?: string };
 
 // RFC 4180: quoted fields, "" escapes, commas/newlines inside quotes, CRLF, BOM.
 export function parseCsv(text: string): string[][] {

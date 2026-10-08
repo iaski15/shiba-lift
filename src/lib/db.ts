@@ -25,7 +25,13 @@ export async function migrate(db: SQLiteDatabase) {
       CREATE INDEX workouts_started ON workouts(started_at);
     `);
   }
-  await db.execAsync('PRAGMA user_version = 2');
+  if (user_version < 3) {
+    await db.execAsync(`
+      ALTER TABLE workouts ADD COLUMN hevy_id TEXT;
+      CREATE UNIQUE INDEX workouts_hevy ON workouts(hevy_id);
+    `);
+  }
+  await db.execAsync('PRAGMA user_version = 3');
 }
 
 async function v1(db: SQLiteDatabase) {
@@ -154,7 +160,7 @@ export async function importWorkouts(db: SQLiteDatabase, ws: import('./csv').Imp
   const seen = new Set((await db.getAllAsync<{ started_at: number }>('SELECT started_at FROM workouts')).map(r => r.started_at));
   // Hundreds of workouts are 10k+ set rows: prepared statements + 150-row multi-inserts (750 params, under SQLite's 999).
   const BATCH = 150;
-  const insW = await db.prepareAsync('INSERT INTO workouts (name, started_at, ended_at) VALUES (?, ?, ?)');
+  const insW = await db.prepareAsync('INSERT INTO workouts (name, started_at, ended_at, hevy_id) VALUES (?, ?, ?, ?)');
   const insE = await db.prepareAsync('INSERT OR IGNORE INTO exercises (id, name, muscle, equipment, custom) VALUES (?, ?, ?, ?, 1)');
   const insS = await db.prepareAsync(`INSERT INTO sets (workout_id, exercise_id, idx, weight, reps) VALUES ${Array(BATCH).fill('(?, ?, ?, ?, ?)').join(', ')}`);
   let buf: (string | number)[] = [];
@@ -168,9 +174,13 @@ export async function importWorkouts(db: SQLiteDatabase, ws: import('./csv').Imp
   try {
     await db.withTransactionAsync(async () => {
       for (const w of ws) {
-        if (seen.has(w.start)) { res.skipped++; continue; } // re-importing the same export is a no-op
+        if (w.hevyId) {
+          // Synced from Hevy: replace the old copy (same Hevy id, or the CSV-imported one with the same start time).
+          await flush(true);
+          await removeWorkouts(db, 'hevy_id = ? OR (hevy_id IS NULL AND started_at = ?)', [w.hevyId, w.start]);
+        } else if (seen.has(w.start)) { res.skipped++; continue; } // re-importing the same export is a no-op
         seen.add(w.start);
-        const wid = (await insW.executeAsync(w.name, w.start, w.end)).lastInsertRowId;
+        const wid = (await insW.executeAsync(w.name, w.start, w.end, w.hevyId ?? null)).lastInsertRowId;
         const idx = new Map<string, number>();
         for (const st of w.sets) {
           let exId = byName.get(st.exercise.toLowerCase());
@@ -196,3 +206,18 @@ export async function importWorkouts(db: SQLiteDatabase, ws: import('./csv').Imp
   }
   return res;
 }
+
+const removeWorkouts = async (db: SQLiteDatabase, where: string, params: (string | number)[]) => {
+  await db.runAsync(`DELETE FROM sets WHERE workout_id IN (SELECT id FROM workouts WHERE ${where})`, params);
+  await db.runAsync(`DELETE FROM workouts WHERE ${where}`, params);
+};
+
+export async function deleteHevyWorkouts(db: SQLiteDatabase, hevyIds: string[]) {
+  await db.withTransactionAsync(async () => {
+    for (const id of hevyIds) await removeWorkouts(db, 'hevy_id = ?', [id]);
+  });
+}
+
+export const getKv = async (db: SQLiteDatabase, k: string) => (await db.getFirstAsync<{ v: string }>('SELECT v FROM kv WHERE k = ?', k))?.v ?? null;
+export const setKv = (db: SQLiteDatabase, k: string, v: string | null) =>
+  v === null ? db.runAsync('DELETE FROM kv WHERE k = ?', k) : db.runAsync('REPLACE INTO kv (k, v) VALUES (?, ?)', k, v);

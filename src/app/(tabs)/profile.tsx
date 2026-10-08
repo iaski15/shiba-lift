@@ -3,6 +3,7 @@ import { useSQLiteContext } from 'expo-sqlite';
 import { useCallback, useEffect, useState } from 'react';
 import * as DocumentPicker from 'expo-document-picker';
 import { Alert, ScrollView, View } from 'react-native';
+import { HevyCard } from '../../components/HevyCard';
 import { Shiba } from '../../components/Shiba';
 import { Btn, Card, Input, Txt, kg, useTheme } from '../../components/ui';
 import { parseHevy } from '../../lib/csv';
@@ -59,6 +60,7 @@ ${r.skipped} already imported, skipped.` : ''));
         </Card>
       </View>
 
+      <HevyCard onSynced={load} />
       <Btn variant="ghost" title={importing ? 'Importing…' : '📥 Import Hevy workouts (CSV)'} disabled={importing} onPress={importHevy} />
 
       <Txt weight="black" size={18}>🏆 Personal records</Txt>

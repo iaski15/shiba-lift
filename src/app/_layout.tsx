@@ -1,6 +1,8 @@
 import { Nunito_400Regular, Nunito_700Bold, Nunito_900Black, useFonts } from '@expo-google-fonts/nunito';
 import { Stack } from 'expo-router';
-import { SQLiteProvider } from 'expo-sqlite';
+import { SQLiteProvider, useSQLiteContext } from 'expo-sqlite';
+import { useEffect } from 'react';
+import { autoSyncHevy } from '../components/HevyCard';
 import { StatusBar } from 'expo-status-bar';
 import { font, useTheme } from '../components/ui';
 import { migrate } from '../lib/db';
@@ -12,6 +14,7 @@ export default function Root() {
   return (
     <SQLiteProvider databaseName="shiba.db" onInit={migrate}>
       <StatusBar style="auto" />
+      <HevyAutoSync />
       <Stack
         screenOptions={{
           headerStyle: { backgroundColor: t.bg },
@@ -28,4 +31,10 @@ export default function Root() {
       </Stack>
     </SQLiteProvider>
   );
+}
+
+function HevyAutoSync() {
+  const db = useSQLiteContext();
+  useEffect(() => { autoSyncHevy(db); }, [db]);
+  return null;
 }

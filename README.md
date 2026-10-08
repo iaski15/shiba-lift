@@ -34,7 +34,14 @@ On the Workout tab, use **+ New routine** to build your Push / Pull / Legs: set 
 - Tap a routine to start it. **💾 Save as routine** or **Update routine** on the workout screen saves your changes back to it.
 - The rest timer defaults to 2:00 (`REST_SECONDS` in `src/app/active.tsx`).
 
-## Import from Hevy
+## Sync with Hevy (Hevy Pro)
+1. Get your API key at **hevy.com/settings?developer**.
+2. In Shiba Lift, open **Me → Connect Hevy**, paste the key and tap **Connect & sync**. The key is stored in the phone's secure storage.
+- The first sync pulls your whole Hevy history. After that it syncs automatically every time the app opens, or tap **🔄 Sync now**.
+- Workouts you edit or delete in Hevy are updated or removed here too. A workout you imported earlier from CSV is replaced by its synced copy, so nothing is doubled.
+- Hevy's API has no friends or followers, so the social side stays in Shiba Lift.
+
+## Import from Hevy (CSV, no Pro needed)
 1. In Hevy, go to **Profile → ⚙️ Settings → Export & Import Data → Export Workouts**. You get a `.csv` file.
 2. Put the file on your phone, open the **Me** tab and tap **📥 Import Hevy workouts (CSV)**.
 - Hevy exercise names that aren't in the library are added as custom ⭐ exercises with the same name. Keep using those so your history and progression carry over.
