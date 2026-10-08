@@ -15,8 +15,10 @@
     "expo-notifications": "~57.0.22",
     "expo-router": "~57.0.25",
     "expo-secure-store": "~57.0.4",
+    "expo-splash-screen": "~57.0.9",
     "expo-sqlite": "~57.0.4",
     "expo-status-bar": "~57.0.1",
+    "expo-system-ui": "~57.0.4",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-native": "0.86.3",
@@ -35,11 +37,12 @@
   },
   "scripts": {
     "start": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
     "web": "expo start --web",
     "test": "npx --yes tsx src/lib/progression.test.ts && npx --yes tsx src/lib/csv.test.ts && npx --yes tsx src/lib/hevy.test.ts",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "build:apk": "expo prebuild --platform android && cd android && gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a,armeabi-v7a,x86_64"
   },
   "private": true
 }

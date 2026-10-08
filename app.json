@@ -7,7 +7,8 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.shibalift.app"
     },
     "android": {
       "adaptiveIcon": {
@@ -16,7 +17,13 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.shibalift.app",
+      "versionCode": 1,
+      "permissions": [
+        "USE_EXACT_ALARM",
+        "SCHEDULE_EXACT_ALARM"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -25,7 +32,29 @@
       "expo-router",
       "expo-sqlite",
       "expo-font",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 180,
+          "backgroundColor": "#FFF4E6",
+          "dark": {
+            "image": "./assets/splash-icon.png",
+            "backgroundColor": "#1E1A17"
+          }
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/android-icon-monochrome.png",
+          "color": "#E8A35A",
+          "sounds": [
+            "./assets/sounds/rest.wav"
+          ]
+        }
+      ]
     ],
     "scheme": "shibalift"
   }

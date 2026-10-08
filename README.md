@@ -2,12 +2,24 @@
 
 A cute workout tracker with real progressive overload.
 
-## Run it
+## Build the app (Android APK)
+Shiba Lift is a standalone app. It doesn't need Expo Go or a running dev server.
+
+Requirements: Node, JDK 17 or 21, and the Android SDK (`ANDROID_HOME`).
 ```
 npm install
-npx expo start
+npm run build:apk
 ```
-Scan the QR code with **Expo Go** on your phone.
+The APK lands in `android/app/build/outputs/apk/release/app-release.apk`. Copy it to your phone and open it to install (allow "install unknown apps" once).
+
+> The release APK is signed with the debug key, which is fine for installing on your own phones. Publishing to the Play Store needs a real upload key (EAS or a Gradle signing config).
+
+`android/` is generated from `app.json` (`npx expo prebuild`), so don't edit it by hand. Icons come from `node scripts/make-icons.js`.
+
+## Develop
+```
+npm run android    # builds a debug app on a connected phone/emulator, then live-reloads your edits
+```
 
 ## Turn on the social feed (optional)
 Workout tracking works fully offline without this. To turn on the feed:
@@ -15,7 +27,7 @@ Workout tracking works fully offline without this. To turn on the feed:
 2. Open **SQL Editor**, paste in `supabase/schema.sql` and run it.
 3. Go to **Authentication → Sign In / Providers → Email** and turn off "Confirm email" if you want instant sign-up.
 4. Copy `.env.example` to `.env` and fill in the Project URL and anon key from **Project Settings → API**.
-5. Restart `npx expo start`.
+5. Rebuild the app (`npm run build:apk`). The keys are baked in at build time.
 
 ## How progression works
 Each exercise has a rep range (8–12 by default) and an increment (2.5 kg by default). You can change both by tapping an exercise in the Exercises tab.
@@ -24,7 +36,7 @@ Each exercise has a rep range (8–12 by default) and an increment (2.5 kg by de
 
 Suggestions appear as grey placeholders. Tapping ✓ on an empty set uses the suggestion.
 
-In Expo Go on Android the rest timer is in-app only (Expo Go can't load `expo-notifications` there). A development build (`npx expo run:android`) also gets the background "rest over" notification.
+The rest timer also sends a "rest over" notification, so you hear about it with the app in the background. It plays a soft chime (`assets/sounds/rest.wav`, regenerate with `node scripts/make-sound.js`) and uses an exact alarm so it isn't delayed.
 
 Set `REST_SECONDS` in `src/app/active.tsx` to change the rest timer.
 

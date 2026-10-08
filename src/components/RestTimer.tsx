@@ -17,12 +17,18 @@ try {
   Notifications = null;
 }
 
+const CHANNEL = 'rest-soft';
+
 let asked = false;
 async function ensurePermission(Notifications: typeof import('expo-notifications')) {
   if (asked) return;
   asked = true;
   if (Platform.OS === 'android') {
-    await Notifications.setNotificationChannelAsync('rest', { name: 'Rest timer', importance: Notifications.AndroidImportance.HIGH });
+    // Android fixes a channel's sound when it's created, so the soft chime needs a new channel id; drop the old loud one.
+    await Notifications.deleteNotificationChannelAsync('rest').catch(() => {});
+    await Notifications.setNotificationChannelAsync(CHANNEL, {
+      name: 'Rest timer', importance: Notifications.AndroidImportance.HIGH, sound: 'rest.wav', vibrationPattern: [0, 120],
+    });
   }
   const { status } = await Notifications.getPermissionsAsync();
   if (status !== 'granted') await Notifications.requestPermissionsAsync();
@@ -45,13 +51,16 @@ export function RestTimer({ endAt, setEndAt }: { endAt: number | null; setEndAt:
       const seconds = Math.round((endAt - Date.now()) / 1000);
       if (cancelled || seconds < 1) return;
       notifId.current = await Notifications.scheduleNotificationAsync({
-        content: { title: 'Rest over! 🐕', body: 'Shiba says: next set, go go go' },
-        trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds, channelId: 'rest' },
+        content: { title: 'Rest over! 🐕', body: 'Shiba says: next set, go go go', sound: 'rest.wav' },
+        trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds, channelId: CHANNEL },
       });
     })();
     if (!endAt) return;
-    const iv = setInterval(() => setNow(Date.now()), 250);
-    return () => { cancelled = true; clearInterval(iv); };
+    // Refresh `now` right away: it was last set when the previous timer ran, so the first frame would show too much rest.
+    const tick = () => setNow(Date.now());
+    const first = setTimeout(tick, 0);
+    const iv = setInterval(tick, 250);
+    return () => { cancelled = true; clearTimeout(first); clearInterval(iv); };
   }, [endAt]);
 
   const left = endAt ? Math.ceil((endAt - now) / 1000) : 0;
