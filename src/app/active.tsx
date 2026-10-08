@@ -6,8 +6,8 @@ import { Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Te
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ExerciseList } from '../components/ExerciseList';
 import { PRPopup, type PRInfo } from '../components/PRPopup';
-import { RestTimer } from '../components/RestTimer';
-import { Btn, Card, Txt, font, useTheme } from '../components/ui';
+import { RestTimer, cancelRestNotification } from '../components/RestTimer';
+import { Btn, Card, Txt, font, screenTheme, useTheme } from '../components/ui';
 import { getDraft, history, makeBlock, saveRoutine, saveWorkout, setDraft, type Draft } from '../lib/db';
 import { isPR } from '../lib/progression';
 import { supabase } from '../lib/supabase';
@@ -21,12 +21,17 @@ export default function Active() {
   const t = useTheme();
   const insets = useSafeAreaInsets();
   const [d, setD] = useState<Draft | null>(null);
-  const [restEnd, setRestEnd] = useState<number | null>(null);
   const [pr, setPr] = useState<PRInfo | null>(null);
   const [picking, setPicking] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => { getDraft(db).then(x => (x ? setD(x) : router.back())); }, [db]);
+  useEffect(() => {
+    getDraft(db).then(x => {
+      if (!x) return router.back();
+      if (x.restEnd && x.restEnd <= Date.now()) delete x.restEnd; // rest finished while away: no stray buzz on return
+      setD(x);
+    });
+  }, [db]);
   useEffect(() => { if (d) setDraft(db, d); }, [db, d]); // persist every change so a crash never loses a session
 
   const edit = (fn: (x: Draft) => void) => setD(prev => {
@@ -36,6 +41,10 @@ export default function Active() {
   });
 
   if (!d) return null;
+
+  // Rest end time lives in the draft, so leaving the screen (or the app being killed) doesn't lose the timer.
+  const restEnd = d.restEnd ?? null;
+  const setRestEnd = (t: number | null) => edit(x => { x.restEnd = t ?? undefined; });
 
   const toggle = async (bi: number, si: number) => {
     const b = d.blocks[bi], s = b.sets[si];
@@ -67,7 +76,7 @@ export default function Active() {
       setSaving(false);
       return Alert.alert('Could not save', String(e));
     }
-    setRestEnd(null);
+    cancelRestNotification(); // not setRestEnd(null): that edits the draft and would re-save the finished workout
     const summary = summarize(d);
     let shared = false;
     if (supabase && (await supabase.auth.getSession()).data.session) {
@@ -86,12 +95,13 @@ export default function Active() {
 
   const discard = () => Alert.alert('Discard workout?', 'Nothing will be saved.', [
     { text: 'Keep going', style: 'cancel' },
-    { text: 'Discard', style: 'destructive', onPress: async () => { await setDraft(db, null); setD(null); router.back(); } },
+    { text: 'Discard', style: 'destructive', onPress: async () => { await setDraft(db, null); setD(null); cancelRestNotification(); router.back(); } },
   ]);
 
   return (
     <View style={{ flex: 1 }}>
       <Stack.Screen options={{
+        ...screenTheme(t),
         headerLeft: () => <Btn small variant="ghost" title="Discard" onPress={discard} />,
         headerRight: () => <Btn small title={saving ? '…' : 'Finish'} disabled={saving} onPress={finish} />,
         headerTitle: () => <Elapsed since={d.startedAt} />,

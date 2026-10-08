@@ -3,7 +3,7 @@ import { useSQLiteContext } from 'expo-sqlite';
 import { useEffect, useState } from 'react';
 import { Alert, Modal, Pressable, ScrollView, View } from 'react-native';
 import { ExerciseList } from '../components/ExerciseList';
-import { Btn, Card, Input, Txt, useTheme } from '../components/ui';
+import { Btn, Card, Input, Txt, screenTheme, useTheme } from '../components/ui';
 import { deleteRoutine, getRoutine, saveRoutine, type RoutineItem } from '../lib/db';
 
 export default function RoutineEditor() {
@@ -42,7 +42,7 @@ export default function RoutineEditor() {
 
   return (
     <View style={{ flex: 1 }}>
-      <Stack.Screen options={{ title: rid ? 'Edit routine' : 'New routine', headerRight: () => <Btn small title="Save" onPress={save} /> }} />
+      <Stack.Screen options={{ ...screenTheme(t), title: rid ? 'Edit routine' : 'New routine', headerRight: () => <Btn small title="Save" onPress={save} /> }} />
       <ScrollView contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 60 }} keyboardShouldPersistTaps="handled">
         <Input placeholder="Routine name (e.g. Push)" value={name} onChangeText={setName} style={{ fontSize: 20 }} />
         {items.map((it, i) => {

@@ -14,7 +14,7 @@ export type Exercise = {
 export type DraftSet = { weight: string; reps: string; done: boolean };
 // linked = superset with the next block (rest only starts after the last exercise of the superset).
 export type Block = { ex: Exercise; prev: S[]; sugg: S[]; sets: DraftSet[]; linked?: boolean };
-export type Draft = { name: string; startedAt: number; blocks: Block[]; prs?: number; routineId?: number };
+export type Draft = { name: string; startedAt: number; blocks: Block[]; prs?: number; routineId?: number; restEnd?: number };
 
 export async function migrate(db: SQLiteDatabase) {
   const { user_version } = (await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version'))!;

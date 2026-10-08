@@ -1,7 +1,7 @@
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { ScrollView, View } from 'react-native';
 import { Shiba } from '../components/Shiba';
-import { Btn, Card, Txt, useTheme } from '../components/ui';
+import { Btn, Card, Txt, screenTheme, useTheme } from '../components/ui';
 
 // Heaviest thing you out-lifted wins. Weights are rough on purpose.
 const THINGS: [kg: number, emoji: string, one: string, many: string][] = [
@@ -32,7 +32,8 @@ export default function Summary() {
     </Card>
   );
   return (
-    <ScrollView contentContainerStyle={{ padding: 24, gap: 14, alignItems: 'stretch' }}>
+    <ScrollView style={{ backgroundColor: t.bg }} contentContainerStyle={{ padding: 24, gap: 14, alignItems: 'stretch' }}>
+      <Stack.Screen options={screenTheme(t)} />
       <View style={{ alignItems: 'center' }}><Shiba size={140} mood="hype" /></View>
       <Txt weight="black" size={26} style={{ textAlign: 'center' }}>{p.name || 'Workout'} done! 🐾</Txt>
       <Card style={{ alignItems: 'center', gap: 4, paddingVertical: 22 }}>

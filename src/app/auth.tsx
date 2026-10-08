@@ -1,8 +1,8 @@
-import { router } from 'expo-router';
+import { router, Stack } from 'expo-router';
 import { useState } from 'react';
 import { Alert, ScrollView, View } from "react-native";
 import { Shiba } from '../components/Shiba';
-import { Btn, Input, Txt, useTheme } from '../components/ui';
+import { Btn, Input, Txt, screenTheme, useTheme } from '../components/ui';
 import { supabase } from '../lib/supabase';
 
 export default function Auth() {
@@ -29,7 +29,8 @@ export default function Auth() {
   };
 
   return (
-    <ScrollView contentContainerStyle={{ padding: 24, gap: 12, alignItems: 'stretch' }} keyboardShouldPersistTaps="handled">
+    <ScrollView style={{ backgroundColor: t.bg }} contentContainerStyle={{ padding: 24, gap: 12, alignItems: 'stretch' }} keyboardShouldPersistTaps="handled">
+      <Stack.Screen options={screenTheme(t)} />
       <View style={{ alignItems: "center" }}><Shiba size={110} mood="happy" /></View>
       <Txt weight="black" size={26} style={{ textAlign: 'center' }}>{mode === 'in' ? 'Welcome back!' : 'Join the pack'}</Txt>
       {mode === 'up' && <Input placeholder="Username" value={username} onChangeText={setUsername} autoCapitalize="none" autoCorrect={false} />}

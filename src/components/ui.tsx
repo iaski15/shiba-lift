@@ -55,4 +55,12 @@ export function Input({ style, ...p }: TextInputProps) {
   );
 }
 
-export const kg = (n: number) => (n >= 1000 ? `${Math.round(n).toLocaleString()} kg` : `${Math.round(n * 10) / 10}kg`);
+export const kg = (n: number) => (n >= 1000 ? `${Math.round(n).toLocaleString()} kg` : `${Math.round(n * 10) / 10} kg`);
+
+// Stack screens re-apply these themselves: the root Stack's options don't follow a live light/dark switch.
+export const screenTheme = (t: Theme) => ({
+  headerStyle: { backgroundColor: t.bg },
+  headerTintColor: t.primaryDark,
+  headerTitleStyle: { fontFamily: font.black, color: t.text },
+  contentStyle: { backgroundColor: t.bg },
+});

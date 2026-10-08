@@ -1,5 +1,5 @@
 import * as Haptics from 'expo-haptics';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Platform, Pressable, View } from 'react-native';
 import { Shiba } from './Shiba';
 import { Txt, useTheme } from './ui';
@@ -18,6 +18,7 @@ try {
 }
 
 const CHANNEL = 'rest-soft';
+const NOTIF_ID = 'rest-over';
 
 let asked = false;
 async function ensurePermission(Notifications: typeof import('expo-notifications')) {
@@ -34,23 +35,25 @@ async function ensurePermission(Notifications: typeof import('expo-notifications
   if (status !== 'granted') await Notifications.requestPermissionsAsync();
 }
 
+export const cancelRestNotification = () => { Notifications?.cancelScheduledNotificationAsync(NOTIF_ID).catch(() => {}); };
+
 // Owns the countdown + background notification. Parent just sets `endAt` (ms timestamp) or null.
 export function RestTimer({ endAt, setEndAt }: { endAt: number | null; setEndAt: (n: number | null) => void }) {
   const t = useTheme();
   const [now, setNow] = useState(() => Date.now());
-  const notifId = useRef<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       if (!Notifications) return;
-      if (notifId.current) await Notifications.cancelScheduledNotificationAsync(notifId.current);
-      notifId.current = null;
+      // One fixed id: rescheduling replaces the pending one, even across screen remounts or app restarts.
+      await Notifications.cancelScheduledNotificationAsync(NOTIF_ID);
       if (!endAt) return;
       await ensurePermission(Notifications);
       const seconds = Math.round((endAt - Date.now()) / 1000);
       if (cancelled || seconds < 1) return;
-      notifId.current = await Notifications.scheduleNotificationAsync({
+      await Notifications.scheduleNotificationAsync({
+        identifier: NOTIF_ID,
         content: { title: 'Rest over! 🐕', body: 'Shiba says: next set, go go go', sound: 'rest.wav' },
         trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds, channelId: CHANNEL },
       });

@@ -27,10 +27,29 @@ if (!env.JAVA_HOME) {
 console.log(`Android SDK: ${env.ANDROID_HOME}\nJDK: ${env.JAVA_HOME || '(java on PATH)'}`);
 
 const run = (cmd, cwd = root) => execSync(cmd, { cwd, env, stdio: 'inherit' });
-run('npx expo prebuild --platform android');
-// Full path: some Windows setups (NoDefaultCurrentDirectoryInExePath) won't run programs from the current folder.
+// Full path: some Windows setups won't run programs from the current folder.
 const android = path.join(root, 'android');
-run(`"${path.join(android, win ? 'gradlew.bat' : 'gradlew')}" assembleRelease -PreactNativeArchitectures=arm64-v8a,armeabi-v7a,x86_64`, android);
+const gradlew = path.join(android, win ? 'gradlew.bat' : 'gradlew');
+
+// Regenerate android/ only when native config changed (app.json, packages, assets). Plain code changes skip this,
+// which is faster and avoids deleting android/ while a build tool might still hold files in it.
+const stampFile = path.join(android, '.prebuild-stamp');
+const hash = require('crypto').createHash('sha1');
+const files = (dir) => fs.readdirSync(dir, { withFileTypes: true }).flatMap(e => (e.isDirectory() ? files(path.join(dir, e.name)) : [path.join(dir, e.name)]));
+for (const f of ['app.json', 'package.json', ...files(path.join(root, 'assets')).map(f => path.relative(root, f))].sort()) {
+  hash.update(f).update(fs.readFileSync(path.join(root, f)));
+}
+const stamp = hash.digest('hex');
+if (!fs.existsSync(gradlew) || !fs.existsSync(stampFile) || fs.readFileSync(stampFile, 'utf8') !== stamp) {
+  if (fs.existsSync(gradlew)) run(`"${gradlew}" --stop`, android); // release any leftover Gradle daemon's file locks
+  run('npx expo prebuild --platform android');
+  fs.writeFileSync(stampFile, stamp);
+} else {
+  console.log('Native config unchanged, skipping prebuild.');
+}
+
+// --no-daemon: nothing keeps running (and locking android/) after the build finishes.
+run(`"${gradlew}" assembleRelease --no-daemon -PreactNativeArchitectures=arm64-v8a,armeabi-v7a,x86_64`, android);
 
 const apk = path.join(root, 'android/app/build/outputs/apk/release/app-release.apk');
 fs.mkdirSync(path.join(root, 'release'), { recursive: true });
