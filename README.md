@@ -26,7 +26,7 @@ Workout tracking works fully offline without this. To turn on the feed:
 1. Create a free project at supabase.com.
 2. Open **SQL Editor**, paste in `supabase/schema.sql` and run it.
 3. Go to **Authentication → Sign In / Providers → Email** and turn off "Confirm email" if you want instant sign-up.
-4. Copy `.env.example` to `.env` and fill in the Project URL and anon key from **Project Settings → API**.
+4. Copy `.env.example` to `.env` and fill in the **Project URL** and the **Publishable key** (`sb_publishable_…`; older projects call it the anon key). You'll find both under **Project Settings → API Keys** (the URL is also on the project's home page). Never use the secret / service_role key here: it ends up inside the app.
 5. Rebuild the app (`npm run build:apk`). The keys are baked in at build time.
 
 ## How progression works

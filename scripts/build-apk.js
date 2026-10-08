@@ -48,6 +48,9 @@ if (!fs.existsSync(gradlew) || !fs.existsSync(stampFile) || fs.readFileSync(stam
   console.log('Native config unchanged, skipping prebuild.');
 }
 
+// Always re-bundle the JS: Gradle doesn't track .env, so a cached bundle could ship without (or with old) Supabase keys.
+for (const d of ['app/build/generated/assets/react', 'app/build/generated/res/react']) fs.rmSync(path.join(android, d), { recursive: true, force: true });
+
 // --no-daemon: nothing keeps running (and locking android/) after the build finishes.
 run(`"${gradlew}" assembleRelease --no-daemon -PreactNativeArchitectures=arm64-v8a,armeabi-v7a,x86_64`, android);
 

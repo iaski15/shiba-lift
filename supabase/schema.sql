@@ -47,6 +47,10 @@ create table comments (
   created_at timestamptz default now()
 );
 
+-- Explicit grants (projects can be set to not expose new tables to the API automatically). RLS below still decides which rows.
+grant usage on schema public to anon, authenticated;
+grant select, insert, update, delete on profiles, follows, posts, likes, comments to authenticated;
+
 alter table profiles enable row level security;
 alter table follows enable row level security;
 alter table posts enable row level security;
