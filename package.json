@@ -42,7 +42,7 @@
     "web": "expo start --web",
     "test": "npx --yes tsx src/lib/progression.test.ts && npx --yes tsx src/lib/csv.test.ts && npx --yes tsx src/lib/hevy.test.ts",
     "lint": "expo lint",
-    "build:apk": "expo prebuild --platform android && cd android && gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a,armeabi-v7a,x86_64"
+    "build:apk": "node scripts/build-apk.js"
   },
   "private": true
 }

@@ -10,7 +10,7 @@ Requirements: Node, JDK 17 or 21, and the Android SDK (`ANDROID_HOME`).
 npm install
 npm run build:apk
 ```
-The APK lands in `android/app/build/outputs/apk/release/app-release.apk`. Copy it to your phone and open it to install (allow "install unknown apps" once).
+The APK is copied to `release/ShibaLift.apk`. The script finds the Android SDK and a JDK 17/21 itself; set `ANDROID_HOME` / `JAVA_HOME` if they're somewhere unusual. Copy it to your phone and open it to install (allow "install unknown apps" once).
 
 > The release APK is signed with the debug key, which is fine for installing on your own phones. Publishing to the Play Store needs a real upload key (EAS or a Gradle signing config).
 
