@@ -213,7 +213,7 @@ function summarize(d: Draft) {
     exercises: d.blocks.filter(b => b.sets.some(s => s.done)).map(b => {
       const sets = b.sets.filter(s => s.done);
       const best = sets.reduce((a, s) => (+s.weight > +a.weight || (+s.weight === +a.weight && +s.reps > +a.reps) ? s : a));
-      return { name: b.ex.name, sets: sets.length, best: `${best.weight}kg × ${best.reps}` };
+      return { name: b.ex.name, sets: sets.length, best: `${best.weight} kg × ${best.reps}` };
     }),
   };
 }
