@@ -3,8 +3,10 @@ import { useSQLiteContext } from 'expo-sqlite';
 import { useEffect, useState } from 'react';
 import { Alert, Modal, Pressable, ScrollView, View } from 'react-native';
 import { ExerciseList } from '../components/ExerciseList';
+import { OrderControls, PairBanner } from '../components/OrderControls';
 import { Btn, Card, Input, Txt, screenTheme, useTheme } from '../components/ui';
 import { deleteRoutine, getRoutine, saveRoutine, type RoutineItem } from '../lib/db';
+import { removeAt } from '../lib/superset';
 
 export default function RoutineEditor() {
   const db = useSQLiteContext();
@@ -14,6 +16,7 @@ export default function RoutineEditor() {
   const [name, setName] = useState('');
   const [items, setItems] = useState<RoutineItem[]>([]);
   const [picking, setPicking] = useState(false);
+  const [pairFrom, setPairFrom] = useState<number | null>(null);
 
   useEffect(() => {
     if (rid) getRoutine(db, rid).then(r => { if (r) { setName(r.name); setItems(r.items); } });
@@ -45,6 +48,7 @@ export default function RoutineEditor() {
       <Stack.Screen options={{ ...screenTheme(t), title: rid ? 'Edit routine' : 'New routine', headerRight: () => <Btn small title="Save" onPress={save} /> }} />
       <ScrollView contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: 60 }} keyboardShouldPersistTaps="handled">
         <Input placeholder="Routine name (e.g. Push)" value={name} onChangeText={setName} style={{ fontSize: 20 }} />
+        {pairFrom !== null && items[pairFrom] && <PairBanner name={items[pairFrom].name} onCancel={() => setPairFrom(null)} />}
         {items.map((it, i) => {
           const linkedNext = !!it.linked && i < items.length - 1;
           const inSuperset = linkedNext || !!items[i - 1]?.linked;
@@ -53,16 +57,14 @@ export default function RoutineEditor() {
               {inSuperset && <Txt weight="black" size={11} color={t.superset}>🔗 SUPERSET</Txt>}
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 <Txt weight="black" size={16} color={t.primaryDark} style={{ flex: 1 }}>{it.name}</Txt>
-                {i > 0 && chip('↑', () => edit(x => { [x[i - 1], x[i]] = [x[i], x[i - 1]]; }))}
-                {chip('✕', () => edit(x => { x.splice(i, 1); }))}
+                {chip('✕', () => { setPairFrom(null); setItems(prev => removeAt(prev, i)); })}
               </View>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 {chip('−', () => edit(x => { x[i].sets = Math.max(1, x[i].sets - 1); }))}
                 <Txt weight="bold">{it.sets} set{it.sets === 1 ? '' : 's'}</Txt>
                 {chip('+', () => edit(x => { x[i].sets = Math.min(20, x[i].sets + 1); }))}
-                <View style={{ flex: 1 }} />
-                {i < items.length - 1 && chip(`🔗 ${linkedNext ? 'Linked' : 'Superset'}`, () => edit(x => { x[i].linked = !linkedNext; }), linkedNext)}
               </View>
+              <OrderControls items={items} index={i} pairFrom={pairFrom} setPairFrom={setPairFrom} onChange={setItems} />
             </Card>
           );
         })}

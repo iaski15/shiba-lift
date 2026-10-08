@@ -40,7 +40,7 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
-    "test": "npx --yes tsx src/lib/progression.test.ts && npx --yes tsx src/lib/csv.test.ts && npx --yes tsx src/lib/hevy.test.ts",
+    "test": "npx --yes tsx src/lib/progression.test.ts && npx --yes tsx src/lib/csv.test.ts && npx --yes tsx src/lib/hevy.test.ts && npx --yes tsx src/lib/superset.test.ts",
     "lint": "expo lint",
     "build:apk": "node scripts/build-apk.js"
   },

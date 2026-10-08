@@ -5,11 +5,13 @@ import { useEffect, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ExerciseList } from '../components/ExerciseList';
+import { OrderControls, PairBanner } from '../components/OrderControls';
 import { PRPopup, type PRInfo } from '../components/PRPopup';
 import { RestTimer, cancelRestNotification } from '../components/RestTimer';
 import { Btn, Card, Txt, font, screenTheme, useTheme } from '../components/ui';
 import { getDraft, history, makeBlock, saveRoutine, saveWorkout, setDraft, type Draft } from '../lib/db';
 import { isPR } from '../lib/progression';
+import { removeAt } from '../lib/superset';
 import { supabase } from '../lib/supabase';
 
 const REST_SECONDS = 120; // ponytail: one global rest time; per-exercise rest if people ask
@@ -23,6 +25,7 @@ export default function Active() {
   const [d, setD] = useState<Draft | null>(null);
   const [pr, setPr] = useState<PRInfo | null>(null);
   const [picking, setPicking] = useState(false);
+  const [pairFrom, setPairFrom] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -115,11 +118,13 @@ export default function Active() {
             placeholder="Workout name"
             placeholderTextColor={t.sub}
           />
+          {pairFrom !== null && d.blocks[pairFrom] && <PairBanner name={d.blocks[pairFrom].ex.name} onCancel={() => setPairFrom(null)} />}
+          {/* Keyed by exercise (not position): after reordering, Android otherwise keeps stale placeholder hints in reused inputs */}
           {d.blocks.map((b, bi) => {
             const linkedNext = !!b.linked && bi < d.blocks.length - 1;
             const inSuperset = linkedNext || !!d.blocks[bi - 1]?.linked;
             return (
-            <Card key={bi} style={[{ gap: 6 }, inSuperset && { borderLeftWidth: 6, borderLeftColor: t.superset }, linkedNext && { marginBottom: -6 }]}>
+            <Card key={`${b.ex.id}#${d.blocks.slice(0, bi).filter(o => o.ex.id === b.ex.id).length}`} style={[{ gap: 6 }, inSuperset && { borderLeftWidth: 6, borderLeftColor: t.superset }, linkedNext && { marginBottom: -6 }]}>
               <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
                 <View style={{ flex: 1 }}>
                   {inSuperset && <Txt weight="black" size={11} color={t.superset}>🔗 SUPERSET</Txt>}
@@ -129,20 +134,15 @@ export default function Active() {
                     {b.sugg.length > 0 && b.sugg[b.sugg.length - 1].weight > (b.prev[b.prev.length - 1]?.weight ?? 0) ? ' · ⬆ Time to go heavier!' : ''}
                   </Txt>
                 </View>
-                {bi < d.blocks.length - 1 && (
-                  <Pressable hitSlop={10} accessibilityRole="switch" accessibilityState={{ checked: linkedNext }} accessibilityLabel="Superset with next exercise"
-                    onPress={() => edit(x => { x.blocks[bi].linked = !linkedNext; })}
-                    style={{ backgroundColor: linkedNext ? t.superset : t.line, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 }}>
-                    <Txt weight="black" size={12} color={linkedNext ? '#fff' : t.sub}>🔗 {linkedNext ? 'Linked' : 'Superset'}</Txt>
-                  </Pressable>
-                )}
                 <Pressable hitSlop={10} accessibilityLabel="Remove exercise" onPress={() => Alert.alert('Remove exercise?', b.ex.name, [
                   { text: 'Cancel', style: 'cancel' },
-                  { text: 'Remove', style: 'destructive', onPress: () => edit(x => { x.blocks.splice(bi, 1); }) },
+                  { text: 'Remove', style: 'destructive', onPress: () => { setPairFrom(null); edit(x => { x.blocks = removeAt(x.blocks, bi); }); } },
                 ])}>
                   <Txt weight="black" color={t.sub} size={18}>✕</Txt>
                 </Pressable>
               </View>
+              <OrderControls items={d.blocks} index={bi} pairFrom={pairFrom} setPairFrom={setPairFrom}
+                onChange={blocks => edit(x => { x.blocks = blocks; })} />
               <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 4 }}>
                 {['SET', 'PREVIOUS', 'KG', 'REPS', '✓'].map((h, i) => (
                   <Txt key={h} weight="bold" size={11} color={t.sub} style={{ width: [32, undefined, 66, 56, 40][i], flex: i === 1 ? 1 : undefined, textAlign: 'center' }}>{h}</Txt>
@@ -154,7 +154,11 @@ export default function Active() {
                 const cell = { width: 66, textAlign: 'center' as const, fontFamily: font.bold, fontSize: 16, color: t.text, backgroundColor: s.done ? 'transparent' : t.input, borderRadius: 10, paddingVertical: 6 };
                 return (
                   <View key={si} style={{ flexDirection: 'row', gap: 8, alignItems: 'center', backgroundColor: s.done ? t.good + '33' : 'transparent', borderRadius: 12, padding: 4 }}>
-                    <Pressable style={{ width: 32 }} onLongPress={() => edit(x => { x.blocks[bi].sets.splice(si, 1); })}>
+                    <Pressable style={{ width: 32 }} hitSlop={6} accessibilityRole="button" accessibilityLabel={`Delete set ${si + 1}`}
+                      onPress={() => Alert.alert(`Delete set ${si + 1}?`, b.ex.name, [
+                        { text: 'Cancel', style: 'cancel' },
+                        { text: 'Delete', style: 'destructive', onPress: () => edit(x => { x.blocks[bi].sets.splice(si, 1); }) },
+                      ])}>
                       <Txt weight="black" style={{ textAlign: 'center' }}>{si + 1}</Txt>
                     </Pressable>
                     <Txt size={13} color={t.sub} style={{ flex: 1, textAlign: 'center' }}>{p ? `${p.weight}×${p.reps}` : '—'}</Txt>
@@ -169,14 +173,22 @@ export default function Active() {
                   </View>
                 );
               })}
-              <Btn small variant="ghost" title="+ Add set" onPress={() => edit(x => { x.blocks[bi].sets.push({ weight: '', reps: '', done: false }); })} />
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <View style={{ flex: 1 }}>
+                  <Btn small variant="ghost" title="− Remove set" disabled={b.sets.length <= 1}
+                    onPress={() => edit(x => { x.blocks[bi].sets.pop(); })} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Btn small variant="ghost" title="+ Add set" onPress={() => edit(x => { x.blocks[bi].sets.push({ weight: '', reps: '', done: false }); })} />
+                </View>
+              </View>
             </Card>
             );
           })}
           {d.blocks.length === 0 && <Txt color={t.sub} style={{ textAlign: 'center', marginVertical: 20 }}>Add an exercise to get started 🐾</Txt>}
           <Btn title="+ Add exercise" onPress={() => setPicking(true)} />
           {d.blocks.length > 0 && <Btn variant="ghost" title={d.routineId ? '💾 Update routine' : '💾 Save as routine'} onPress={saveAsRoutine} />}
-          <Txt size={11} color={t.sub} style={{ textAlign: 'center' }}>Grey numbers are Shiba’s suggestion. Tap ✓ to use them. Long-press a set number to delete it.</Txt>
+          <Txt size={11} color={t.sub} style={{ textAlign: 'center' }}>Grey numbers are Shiba’s suggestion. Tap ✓ to use them. Tap a set number to delete that set.</Txt>
         </ScrollView>
       </KeyboardAvoidingView>
 
