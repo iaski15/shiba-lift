@@ -1,5 +1,5 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
-import { e1rm, suggest, type S } from './progression';
+import { DEFAULT_RANGE, e1rm, suggest, type Range, type S } from './progression';
 
 export type Exercise = {
   id: string;
@@ -88,14 +88,14 @@ export async function makeBlock(db: SQLiteDatabase, ex: Exercise, sets?: number,
   // Last time's warm-ups come back first; `sets` (from a routine) is the number of working sets.
   const warm = last.filter(s => s.warmup), work = last.filter(s => !s.warmup);
   const n = sets || work.length || 3;
-  const workSugg = suggest(work, ex);
   const empty = (warmup: boolean): DraftSet => ({ weight: '', reps: '', done: false, warmup });
-  return {
-    ex, linked,
-    prev: [...warm, ...work.slice(0, n)],
-    sugg: [...warm, ...workSugg.slice(0, n)],
-    sets: [...warm.map(() => empty(true)), ...Array.from({ length: n }, () => empty(false))],
-  };
+  const prev = [...warm, ...work.slice(0, n)];
+  return { ex, linked, prev, sugg: suggestFor(prev, ex), sets: [...warm.map(() => empty(true)), ...Array.from({ length: n }, () => empty(false))] };
+}
+
+// Suggestions lined up with `prev`: warm-ups repeat as they were, working sets follow the exercise's progression rule.
+export function suggestFor(prev: PrevSet[], ex: Range): S[] {
+  return [...prev.filter(s => s.warmup), ...suggest(prev.filter(s => !s.warmup), ex)];
 }
 
 export async function saveWorkout(db: SQLiteDatabase, d: Draft) {
@@ -186,7 +186,8 @@ export async function importWorkouts(db: SQLiteDatabase, ws: import('./csv').Imp
   // Hundreds of workouts are 10k+ set rows: prepared statements + 150-row multi-inserts (900 params, under SQLite's 999).
   const BATCH = 150, COLS = 6;
   const insW = await db.prepareAsync('INSERT INTO workouts (name, started_at, ended_at, hevy_id) VALUES (?, ?, ?, ?)');
-  const insE = await db.prepareAsync('INSERT OR IGNORE INTO exercises (id, name, muscle, equipment, custom) VALUES (?, ?, ?, ?, 1)');
+  const def = await getProgDefaults(db);
+  const insE = await db.prepareAsync('INSERT OR IGNORE INTO exercises (id, name, muscle, equipment, custom, rep_min, rep_max, increment) VALUES (?, ?, ?, ?, 1, ?, ?, ?)');
   const insS = await db.prepareAsync(`INSERT INTO sets (workout_id, exercise_id, idx, weight, reps, warmup) VALUES ${Array(BATCH).fill('(?, ?, ?, ?, ?, ?)').join(', ')}`);
   let buf: (string | number)[] = [];
   const flush = async (all = false) => {
@@ -212,7 +213,7 @@ export async function importWorkouts(db: SQLiteDatabase, ws: import('./csv').Imp
           if (!exId) {
             exId = `custom-import-${st.exercise.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
             const equipment = st.exercise.match(/\(([^)]+)\)\s*$/)?.[1].toLowerCase() ?? 'other';
-            await insE.executeAsync(exId, st.exercise, 'other', equipment);
+            await insE.executeAsync(exId, st.exercise, 'other', equipment, def.rep_min, def.rep_max, def.increment);
             byName.set(st.exercise.toLowerCase(), exId);
             res.newExercises++;
           }
@@ -246,3 +247,13 @@ export async function deleteHevyWorkouts(db: SQLiteDatabase, hevyIds: string[]) 
 export const getKv = async (db: SQLiteDatabase, k: string) => (await db.getFirstAsync<{ v: string }>('SELECT v FROM kv WHERE k = ?', k))?.v ?? null;
 export const setKv = (db: SQLiteDatabase, k: string, v: string | null) =>
   v === null ? db.runAsync('DELETE FROM kv WHERE k = ?', k) : db.runAsync('REPLACE INTO kv (k, v) VALUES (?, ?)', k, v);
+
+// Progression defaults: used for new/custom/imported exercises; "apply to all" also rewrites every exercise.
+export const getProgDefaults = async (db: SQLiteDatabase): Promise<Range> => {
+  const v = await getKv(db, 'prog_defaults');
+  return v ? { ...DEFAULT_RANGE, ...JSON.parse(v) } : DEFAULT_RANGE;
+};
+export async function setProgDefaults(db: SQLiteDatabase, r: Range, applyToAll: boolean) {
+  await setKv(db, 'prog_defaults', JSON.stringify(r));
+  if (applyToAll) await db.runAsync('UPDATE exercises SET rep_min = ?, rep_max = ?, increment = ?', r.rep_min, r.rep_max, r.increment);
+}

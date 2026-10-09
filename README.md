@@ -30,7 +30,10 @@ Workout tracking works fully offline without this. To turn on the feed:
 5. Rebuild the app (`npm run build:apk`). The keys are baked in at build time.
 
 ## How progression works
-Each exercise has a rep range (8–12 by default) and an increment (2.5 kg by default). You can change both by tapping an exercise in the Exercises tab.
+Each exercise has its own rule: **go up in weight when every set hits X reps**, **then start again at Y reps**, and **add Z kg** (default 12 / 8 / +2.5 kg).
+- **Me → ⚙️ Progression settings** sets the default for every exercise, or only for new ones (custom, imported, synced).
+- To change one lift, tap its "8–12 reps · +2.5 kg ✎" line during a workout (suggestions update straight away), or tap it in the Exercises tab.
+- Same number twice (e.g. 5 and 5) = straight sets like 5×5: add weight every time you get all your reps.
 - If you hit the top of the range on every working set, the next workout suggests +increment at the bottom of the range.
 - Otherwise it suggests the same weight with +1 rep per set.
 

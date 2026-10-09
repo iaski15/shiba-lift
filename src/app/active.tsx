@@ -4,12 +4,12 @@ import { useSQLiteContext } from 'expo-sqlite';
 import { useEffect, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ExerciseList } from '../components/ExerciseList';
+import { ExerciseForm, ExerciseList } from '../components/ExerciseList';
 import { OrderControls, PairBanner } from '../components/OrderControls';
 import { PRPopup, type PRInfo } from '../components/PRPopup';
 import { RestTimer, cancelRestNotification } from '../components/RestTimer';
 import { Btn, Card, Txt, font, screenTheme, useTheme } from '../components/ui';
-import { getDraft, history, makeBlock, saveRoutine, saveWorkout, setDraft, type Draft } from '../lib/db';
+import { getDraft, history, makeBlock, saveRoutine, saveWorkout, setDraft, suggestFor, type Draft } from '../lib/db';
 import { isPR } from '../lib/progression';
 import { removeAt } from '../lib/superset';
 import { supabase } from '../lib/supabase';
@@ -26,6 +26,7 @@ export default function Active() {
   const [pr, setPr] = useState<PRInfo | null>(null);
   const [picking, setPicking] = useState(false);
   const [pairFrom, setPairFrom] = useState<number | null>(null);
+  const [editingEx, setEditingEx] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -129,8 +130,8 @@ export default function Active() {
                 <View style={{ flex: 1 }}>
                   {inSuperset && <Txt weight="black" size={11} color={t.superset}>🔗 SUPERSET</Txt>}
                   <Txt weight="black" size={17} color={t.primaryDark}>{b.ex.name}</Txt>
-                  <Txt size={12} color={t.sub}>
-                    {b.ex.rep_min}–{b.ex.rep_max} reps · +{b.ex.increment}kg at top
+                  <Txt size={12} color={t.sub} onPress={() => setEditingEx(bi)} accessibilityRole="button" accessibilityLabel={`Change progression for ${b.ex.name}`}>
+                    {b.ex.rep_min}–{b.ex.rep_max} reps · +{b.ex.increment} kg at top ✎
                     {b.sugg.length > 0 && b.sugg[b.sugg.length - 1].weight > (b.prev[b.prev.length - 1]?.weight ?? 0) ? ' · ⬆ Time to go heavier!' : ''}
                   </Txt>
                 </View>
@@ -154,7 +155,7 @@ export default function Active() {
                 const label = s.warmup ? 'W' : String(b.sets.slice(0, si + 1).filter(o => !o.warmup).length);
                 const cell = { width: 66, textAlign: 'center' as const, fontFamily: font.bold, fontSize: 16, color: t.text, backgroundColor: s.done ? 'transparent' : t.input, borderRadius: 10, paddingVertical: 6 };
                 return (
-                  <View key={si} style={{ flexDirection: 'row', gap: 8, alignItems: 'center', backgroundColor: s.done ? t.good + '33' : 'transparent', borderRadius: 12, padding: 4 }}>
+                  <View key={`${si}:${sg?.weight}x${sg?.reps}`} /* new key when the hint changes: Android never repaints a changed placeholder */ style={{ flexDirection: 'row', gap: 8, alignItems: 'center', backgroundColor: s.done ? t.good + '33' : 'transparent', borderRadius: 12, padding: 4 }}>
                     <Pressable style={{ width: 32 }} hitSlop={6} accessibilityRole="button"
                       accessibilityLabel={s.warmup ? 'Warm-up set options' : `Set ${label} options`}
                       onPress={() => Alert.alert(s.warmup ? 'Warm-up set' : `Set ${label}`, b.ex.name, [
@@ -212,6 +213,15 @@ export default function Active() {
           }} />
         </View>
       </Modal>
+
+      {editingEx !== null && d.blocks[editingEx] && (
+        <ExerciseForm initial={d.blocks[editingEx].ex} onClose={saved => {
+          setEditingEx(null);
+          if (saved) edit(x => { // re-suggest every card of this exercise with the new rule
+            for (const b of x.blocks) if (b.ex.id === saved.id) { b.ex = saved; b.sugg = suggestFor(b.prev, saved); }
+          });
+        }} />
+      )}
 
       <PRPopup pr={pr} onClose={() => setPr(null)} />
     </View>

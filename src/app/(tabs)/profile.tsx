@@ -60,6 +60,7 @@ ${r.skipped} already imported, skipped.` : ''));
         </Card>
       </View>
 
+      <Btn variant="ghost" title="⚙️ Progression settings" onPress={() => router.push('/settings')} />
       <HevyCard onSynced={load} />
       <Btn variant="ghost" title={importing ? 'Importing…' : '📥 Import Hevy workouts (CSV)'} disabled={importing} onPress={importHevy} />
 

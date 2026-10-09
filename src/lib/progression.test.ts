@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { suggest, isPR, e1rm } from './progression';
+import { suggest, isPR, e1rm, parseRange } from './progression';
 
 const r = { rep_min: 8, rep_max: 12, increment: 2.5 };
 
@@ -33,5 +33,17 @@ assert.equal(e1rm({ weight: 100, reps: 13 }), 0); // too many reps to estimate
 assert.equal(e1rm({ weight: 0, reps: 10 }), 0); // bodyweight
 // a 20-rep set gives no 1RM estimate, so it can only ever be a reps PR, never an e1RM PR
 assert.equal(isPR({ weight: 60, reps: 20 }, [{ weight: 100, reps: 5 }]), "reps");
+
+// settings parsing
+assert.deepEqual(parseRange({ rep_min: '6', rep_max: '10', increment: '1,25' }), { rep_min: 6, rep_max: 10, increment: 1.25 });
+assert.deepEqual(parseRange({ rep_min: '5', rep_max: '5', increment: '5' }), { rep_min: 5, rep_max: 5, increment: 5 }); // straight sets
+assert.equal(typeof parseRange({ rep_min: '12', rep_max: '8', increment: '2.5' }), 'string');
+assert.equal(typeof parseRange({ rep_min: '8', rep_max: '12', increment: '0' }), 'string');
+assert.equal(typeof parseRange({ rep_min: '8.5', rep_max: '12', increment: '2.5' }), 'string');
+assert.equal(typeof parseRange({ rep_min: '', rep_max: '12', increment: '2.5' }), 'string');
+// a custom setting drives the suggestion: 5x5, +5 kg
+assert.deepEqual(suggest([{ weight: 100, reps: 5 }, { weight: 100, reps: 5 }], { rep_min: 5, rep_max: 5, increment: 5 }), [
+  { weight: 105, reps: 5 }, { weight: 105, reps: 5 },
+]);
 
 console.log('progression ok 🐕');

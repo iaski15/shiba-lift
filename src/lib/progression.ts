@@ -50,3 +50,14 @@ export const prLabel: Record<PR, string> = {
   e1rm: 'Best estimated 1RM',
   reps: 'Most reps at this weight',
 };
+
+export const DEFAULT_RANGE: Range = { rep_min: 8, rep_max: 12, increment: 2.5 };
+
+// Text fields -> Range, or an error message to show.
+export function parseRange(f: { rep_min: string; rep_max: string; increment: string }): Range | string {
+  const rep_min = Number(f.rep_min), rep_max = Number(f.rep_max), increment = Number(f.increment.replace(',', '.'));
+  if (!Number.isInteger(rep_max) || rep_max < 1 || rep_max > 100) return 'Reps to move up must be a whole number from 1 to 100.';
+  if (!Number.isInteger(rep_min) || rep_min < 1 || rep_min > rep_max) return `Reps to start again at must be a whole number from 1 to ${rep_max}.`;
+  if (!Number.isFinite(increment) || increment <= 0 || increment > 100) return 'Weight to add must be more than 0 kg (e.g. 2.5).';
+  return { rep_min, rep_max, increment: Math.round(increment * 100) / 100 };
+}

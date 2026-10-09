@@ -28,6 +28,7 @@ export default function Root() {
         <Stack.Screen name="auth" options={{ title: 'Join the pack', presentation: 'modal' }} />
         <Stack.Screen name="summary" options={{ title: 'Workout complete', headerBackVisible: false }} />
         <Stack.Screen name="routine" options={{ title: 'Routine' }} />
+        <Stack.Screen name="settings" options={{ title: 'Progression' }} />
       </Stack>
     </SQLiteProvider>
   );
