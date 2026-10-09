@@ -34,6 +34,8 @@ Each exercise has a rep range (8–12 by default) and an increment (2.5 kg by de
 - If you hit the top of the range on every working set, the next workout suggests +increment at the bottom of the range.
 - Otherwise it suggests the same weight with +1 rep per set.
 
+**Warm-up sets:** tap a set's number and choose **Mark as warm-up** (it shows as **W**). Warm-ups never count toward progression suggestions or PRs, and next time they come back first with the same weight. Hevy warm-ups (CSV or sync) come in flagged too.
+
 **Estimated 1RM** is the average of 7 standard formulas (Epley, Brzycki, Lander, Lombardi, Mayhew, O'Conner, Wathan), which evens out the bias each one has. Only sets of 1–12 reps give an estimate; past 12 reps they all get unreliable, so a 20-rep set can be a reps PR but never an e1RM PR.
 
 Suggestions appear as grey placeholders. Tapping ✓ on an empty set uses the suggestion.

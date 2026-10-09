@@ -57,10 +57,10 @@ export default function Active() {
     if (weight === undefined || reps === undefined || !(weight >= 0) || !(reps > 0) || !Number.isInteger(reps)) {
       return Alert.alert('Hmm 🐕', 'Enter a weight (0 for bodyweight) and whole reps first.');
     }
-    const hist = [...(await history(db, b.ex.id)), ...b.sets.filter((o, i) => o.done && i !== si).map(o => ({ weight: +o.weight, reps: +o.reps }))];
-    const kind = isPR({ weight, reps }, hist);
+    const hist = [...(await history(db, b.ex.id)), ...b.sets.filter((o, i) => o.done && !o.warmup && i !== si).map(o => ({ weight: +o.weight, reps: +o.reps }))];
+    const kind = s.warmup ? null : isPR({ weight, reps }, hist); // warm-ups are never PRs
     edit(x => {
-      x.blocks[bi].sets[si] = { weight: String(weight), reps: String(reps), done: true };
+      x.blocks[bi].sets[si] = { weight: String(weight), reps: String(reps), done: true, warmup: s.warmup };
       if (kind) x.prs = (x.prs ?? 0) + 1;
     });
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -151,15 +151,18 @@ export default function Active() {
               {b.sets.map((s, si) => {
                 const sg = b.sugg[si] ?? b.sugg[b.sugg.length - 1];
                 const p = b.prev[si];
+                const label = s.warmup ? 'W' : String(b.sets.slice(0, si + 1).filter(o => !o.warmup).length);
                 const cell = { width: 66, textAlign: 'center' as const, fontFamily: font.bold, fontSize: 16, color: t.text, backgroundColor: s.done ? 'transparent' : t.input, borderRadius: 10, paddingVertical: 6 };
                 return (
                   <View key={si} style={{ flexDirection: 'row', gap: 8, alignItems: 'center', backgroundColor: s.done ? t.good + '33' : 'transparent', borderRadius: 12, padding: 4 }}>
-                    <Pressable style={{ width: 32 }} hitSlop={6} accessibilityRole="button" accessibilityLabel={`Delete set ${si + 1}`}
-                      onPress={() => Alert.alert(`Delete set ${si + 1}?`, b.ex.name, [
+                    <Pressable style={{ width: 32 }} hitSlop={6} accessibilityRole="button"
+                      accessibilityLabel={s.warmup ? 'Warm-up set options' : `Set ${label} options`}
+                      onPress={() => Alert.alert(s.warmup ? 'Warm-up set' : `Set ${label}`, b.ex.name, [
                         { text: 'Cancel', style: 'cancel' },
                         { text: 'Delete', style: 'destructive', onPress: () => edit(x => { x.blocks[bi].sets.splice(si, 1); }) },
+                        { text: s.warmup ? 'Make working set' : 'Mark as warm-up', onPress: () => edit(x => { x.blocks[bi].sets[si].warmup = !s.warmup; }) },
                       ])}>
-                      <Txt weight="black" style={{ textAlign: 'center' }}>{si + 1}</Txt>
+                      <Txt weight="black" color={s.warmup ? t.primary : undefined} style={{ textAlign: 'center' }}>{label}</Txt>
                     </Pressable>
                     <Txt size={13} color={t.sub} style={{ flex: 1, textAlign: 'center' }}>{p ? `${p.weight}×${p.reps}` : '—'}</Txt>
                     <TextInput style={cell} keyboardType="decimal-pad" value={s.weight} placeholder={sg ? String(sg.weight) : ''} placeholderTextColor={t.sub}
@@ -188,7 +191,7 @@ export default function Active() {
           {d.blocks.length === 0 && <Txt color={t.sub} style={{ textAlign: 'center', marginVertical: 20 }}>Add an exercise to get started 🐾</Txt>}
           <Btn title="+ Add exercise" onPress={() => setPicking(true)} />
           {d.blocks.length > 0 && <Btn variant="ghost" title={d.routineId ? '💾 Update routine' : '💾 Save as routine'} onPress={saveAsRoutine} />}
-          <Txt size={11} color={t.sub} style={{ textAlign: 'center' }}>Grey numbers are Shiba’s suggestion. Tap ✓ to use them. Tap a set number to delete that set.</Txt>
+          <Txt size={11} color={t.sub} style={{ textAlign: 'center' }}>Grey numbers are Shiba’s suggestion. Tap ✓ to use them. Tap a set number to make it a warm-up (W) or delete it.</Txt>
         </ScrollView>
       </KeyboardAvoidingView>
 
@@ -224,7 +227,8 @@ function summarize(d: Draft) {
     prs: d.prs ?? 0,
     exercises: d.blocks.filter(b => b.sets.some(s => s.done)).map(b => {
       const sets = b.sets.filter(s => s.done);
-      const best = sets.reduce((a, s) => (+s.weight > +a.weight || (+s.weight === +a.weight && +s.reps > +a.reps) ? s : a));
+      const working = sets.filter(s => !s.warmup);
+      const best = (working.length ? working : sets).reduce((a, s) => (+s.weight > +a.weight || (+s.weight === +a.weight && +s.reps > +a.reps) ? s : a));
       return { name: b.ex.name, sets: sets.length, best: `${best.weight} kg × ${best.reps}` };
     }),
   };

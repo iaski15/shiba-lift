@@ -16,7 +16,7 @@ assert.equal(w.hevyId, 'abc');
 assert.equal(w.name, 'Push');
 assert.equal(w.end - w.start, 65 * 60000);
 assert.deepEqual(w.sets, [
-  { exercise: 'Bench Press (Barbell)', weight: 40, reps: 10 },
+  { exercise: 'Bench Press (Barbell)', weight: 40, reps: 10, warmup: true },
   { exercise: 'Bench Press (Barbell)', weight: 80.33, reps: 8 },
   { exercise: 'Push Up', weight: 0, reps: 15 },
 ]);

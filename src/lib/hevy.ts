@@ -28,7 +28,10 @@ export function toImported(w: HevyWorkout): ImportedWorkout {
     start,
     end: Number.isFinite(end) ? end : start,
     sets: w.exercises.flatMap(e =>
-      e.sets.filter(s => (s.reps ?? 0) > 0).map(s => ({ exercise: e.title.trim(), weight: Math.round((s.weight_kg ?? 0) * 100) / 100, reps: Math.round(s.reps!) })),
+      e.sets.filter(s => (s.reps ?? 0) > 0).map(s => ({
+        exercise: e.title.trim(), weight: Math.round((s.weight_kg ?? 0) * 100) / 100, reps: Math.round(s.reps!),
+        ...(s.type === 'warmup' ? { warmup: true } : {}),
+      })),
     ),
   };
 }

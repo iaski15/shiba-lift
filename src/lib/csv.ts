@@ -1,7 +1,7 @@
 // Hevy export: Profile → Settings → Export & Import Data → Export workouts. One row per set:
 // title,start_time,end_time,description,exercise_title,superset_id,exercise_notes,set_index,set_type,weight_kg|weight_lbs,reps,…
 
-export type ImportedSet = { exercise: string; weight: number; reps: number };
+export type ImportedSet = { exercise: string; weight: number; reps: number; warmup?: boolean };
 // hevyId set = came from the Hevy API: replaces any existing copy (incl. a CSV-imported one) instead of being skipped.
 export type ImportedWorkout = { name: string; start: number; end: number; sets: ImportedSet[]; hevyId?: string };
 
@@ -68,7 +68,7 @@ export function parseHevy(text: string): ImportedWorkout[] {
       w = { name, start, end: Number.isFinite(end) ? end : start, sets: [] };
       byKey.set(key, w);
     }
-    w.sets.push({ exercise, weight, reps });
+    w.sets.push({ exercise, weight, reps, ...(r[col.set_type]?.trim().toLowerCase() === 'warmup' ? { warmup: true } : {}) });
   }
   return [...byKey.values()].sort((a, b) => a.start - b.start);
 }

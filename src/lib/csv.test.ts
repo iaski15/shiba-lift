@@ -23,7 +23,7 @@ assert.equal(ws[0].name, 'Legs'); // sorted oldest first
 assert.equal(ws[1].name, 'Push, heavy');
 assert.equal(ws[1].end - ws[1].start, 65 * 60000);
 assert.deepEqual(ws[1].sets, [
-  { exercise: 'Bench Press (Barbell)', weight: 40, reps: 10 },
+  { exercise: 'Bench Press (Barbell)', weight: 40, reps: 10, warmup: true },
   { exercise: 'Bench Press (Barbell)', weight: 80, reps: 8 },
   { exercise: 'Push Up', weight: 0, reps: 15 },
 ]);

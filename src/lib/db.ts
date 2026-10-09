@@ -11,9 +11,11 @@ export type Exercise = {
   rep_max: number;
   increment: number;
 };
-export type DraftSet = { weight: string; reps: string; done: boolean };
+export type DraftSet = { weight: string; reps: string; done: boolean; warmup?: boolean };
 // linked = superset with the next block (rest only starts after the last exercise of the superset).
-export type Block = { ex: Exercise; prev: S[]; sugg: S[]; sets: DraftSet[]; linked?: boolean };
+// prev/sugg/sets line up by index; a warm-up's suggestion is just last time's warm-up.
+export type Block = { ex: Exercise; prev: PrevSet[]; sugg: S[]; sets: DraftSet[]; linked?: boolean };
+export type PrevSet = S & { warmup: number };
 export type Draft = { name: string; startedAt: number; blocks: Block[]; prs?: number; routineId?: number; restEnd?: number };
 
 export async function migrate(db: SQLiteDatabase) {
@@ -31,7 +33,11 @@ export async function migrate(db: SQLiteDatabase) {
       CREATE UNIQUE INDEX workouts_hevy ON workouts(hevy_id);
     `);
   }
-  await db.execAsync('PRAGMA user_version = 3');
+  if (user_version < 4) {
+    // Workouts synced from Hevy before this had no warm-up flags: forget the sync point so the next sync re-pulls them all.
+    await db.execAsync(`ALTER TABLE sets ADD COLUMN warmup INTEGER NOT NULL DEFAULT 0; DELETE FROM kv WHERE k = 'hevy_since';`);
+  }
+  await db.execAsync('PRAGMA user_version = 4');
 }
 
 async function v1(db: SQLiteDatabase) {
@@ -67,20 +73,29 @@ export const saveExercise = (db: SQLiteDatabase, e: Exercise) =>
 
 // Sets from the most recent workout (by date, so older imported workouts don't win) that had this exercise.
 export const lastSets = (db: SQLiteDatabase, exId: string) =>
-  db.getAllAsync<S>(
-    `SELECT weight, reps FROM sets WHERE exercise_id = ? AND workout_id = (
+  db.getAllAsync<PrevSet>(
+    `SELECT weight, reps, warmup FROM sets WHERE exercise_id = ? AND workout_id = (
       SELECT s.workout_id FROM sets s JOIN workouts w ON w.id = s.workout_id WHERE s.exercise_id = ? ORDER BY w.started_at DESC LIMIT 1
     ) ORDER BY idx`,
     exId, exId,
   );
 
 export const history = (db: SQLiteDatabase, exId: string) =>
-  db.getAllAsync<S>('SELECT weight, reps FROM sets WHERE exercise_id = ?', exId);
+  db.getAllAsync<S>('SELECT weight, reps FROM sets WHERE exercise_id = ? AND warmup = 0', exId); // warm-ups never count for PRs
 
 export async function makeBlock(db: SQLiteDatabase, ex: Exercise, sets?: number, linked?: boolean): Promise<Block> {
-  const prev = await lastSets(db, ex.id);
-  const n = sets || prev.length || 3;
-  return { ex, prev, sugg: suggest(prev, ex), linked, sets: Array.from({ length: n }, () => ({ weight: '', reps: '', done: false })) };
+  const last = await lastSets(db, ex.id);
+  // Last time's warm-ups come back first; `sets` (from a routine) is the number of working sets.
+  const warm = last.filter(s => s.warmup), work = last.filter(s => !s.warmup);
+  const n = sets || work.length || 3;
+  const workSugg = suggest(work, ex);
+  const empty = (warmup: boolean): DraftSet => ({ weight: '', reps: '', done: false, warmup });
+  return {
+    ex, linked,
+    prev: [...warm, ...work.slice(0, n)],
+    sugg: [...warm, ...workSugg.slice(0, n)],
+    sets: [...warm.map(() => empty(true)), ...Array.from({ length: n }, () => empty(false))],
+  };
 }
 
 export async function saveWorkout(db: SQLiteDatabase, d: Draft) {
@@ -91,8 +106,8 @@ export async function saveWorkout(db: SQLiteDatabase, d: Draft) {
     for (const b of d.blocks) {
       let idx = 0;
       for (const s of b.sets.filter(s => s.done)) {
-        await db.runAsync('INSERT INTO sets (workout_id, exercise_id, idx, weight, reps) VALUES (?, ?, ?, ?, ?)',
-          id, b.ex.id, idx++, Number(s.weight), Number(s.reps));
+        await db.runAsync('INSERT INTO sets (workout_id, exercise_id, idx, weight, reps, warmup) VALUES (?, ?, ?, ?, ?, ?)',
+          id, b.ex.id, idx++, Number(s.weight), Number(s.reps), s.warmup ? 1 : 0);
       }
     }
   });
@@ -117,7 +132,7 @@ export type PRRow = { name: string; weight: number; best: number };
 // Best reps at each weight per exercise is enough to find both the heaviest weight and the best estimated 1RM.
 export async function personalRecords(db: SQLiteDatabase): Promise<PRRow[]> {
   const rows = await db.getAllAsync<{ id: string; name: string; weight: number; reps: number }>(
-    `SELECT e.id, e.name, s.weight, MAX(s.reps) AS reps FROM sets s JOIN exercises e ON e.id = s.exercise_id GROUP BY e.id, s.weight`,
+    `SELECT e.id, e.name, s.weight, MAX(s.reps) AS reps FROM sets s JOIN exercises e ON e.id = s.exercise_id WHERE s.warmup = 0 GROUP BY e.id, s.weight`,
   );
   const byEx = new Map<string, PRRow>();
   for (const r of rows) {
@@ -168,16 +183,16 @@ export async function importWorkouts(db: SQLiteDatabase, ws: import('./csv').Imp
   const res = { workouts: 0, sets: 0, skipped: 0, newExercises: 0 };
   const byName = new Map((await getExercises(db)).map(e => [e.name.toLowerCase(), e.id]));
   const seen = new Set((await db.getAllAsync<{ started_at: number }>('SELECT started_at FROM workouts')).map(r => r.started_at));
-  // Hundreds of workouts are 10k+ set rows: prepared statements + 150-row multi-inserts (750 params, under SQLite's 999).
-  const BATCH = 150;
+  // Hundreds of workouts are 10k+ set rows: prepared statements + 150-row multi-inserts (900 params, under SQLite's 999).
+  const BATCH = 150, COLS = 6;
   const insW = await db.prepareAsync('INSERT INTO workouts (name, started_at, ended_at, hevy_id) VALUES (?, ?, ?, ?)');
   const insE = await db.prepareAsync('INSERT OR IGNORE INTO exercises (id, name, muscle, equipment, custom) VALUES (?, ?, ?, ?, 1)');
-  const insS = await db.prepareAsync(`INSERT INTO sets (workout_id, exercise_id, idx, weight, reps) VALUES ${Array(BATCH).fill('(?, ?, ?, ?, ?)').join(', ')}`);
+  const insS = await db.prepareAsync(`INSERT INTO sets (workout_id, exercise_id, idx, weight, reps, warmup) VALUES ${Array(BATCH).fill('(?, ?, ?, ?, ?, ?)').join(', ')}`);
   let buf: (string | number)[] = [];
   const flush = async (all = false) => {
-    while (buf.length >= BATCH * 5) { await insS.executeAsync(buf.slice(0, BATCH * 5)); buf = buf.slice(BATCH * 5); }
-    for (let i = 0; all && i < buf.length; i += 5) {
-      await db.runAsync('INSERT INTO sets (workout_id, exercise_id, idx, weight, reps) VALUES (?, ?, ?, ?, ?)', buf.slice(i, i + 5));
+    while (buf.length >= BATCH * COLS) { await insS.executeAsync(buf.slice(0, BATCH * COLS)); buf = buf.slice(BATCH * COLS); }
+    for (let i = 0; all && i < buf.length; i += COLS) {
+      await db.runAsync('INSERT INTO sets (workout_id, exercise_id, idx, weight, reps, warmup) VALUES (?, ?, ?, ?, ?, ?)', buf.slice(i, i + COLS));
     }
     if (all) buf = [];
   };
@@ -203,7 +218,7 @@ export async function importWorkouts(db: SQLiteDatabase, ws: import('./csv').Imp
           }
           const i = idx.get(exId) ?? 0;
           idx.set(exId, i + 1);
-          buf.push(wid, exId, i, st.weight, st.reps);
+          buf.push(wid, exId, i, st.weight, st.reps, st.warmup ? 1 : 0);
           res.sets++;
         }
         res.workouts++;
