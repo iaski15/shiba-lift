@@ -43,3 +43,6 @@ yarn-error.*
 
 # built APKs
 /release
+
+# local agent instructions
+AGENTS.md
