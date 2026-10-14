@@ -23,7 +23,7 @@ function funFact(volume: number) {
 
 export default function Summary() {
   const t = useTheme();
-  const p = useLocalSearchParams<{ name: string; minutes: string; volume: string; sets: string; prs: string; shared: string }>();
+  const p = useLocalSearchParams<{ name: string; minutes: string; volume: string; sets: string; prs: string; shared: string; hevy: string }>();
   const volume = Number(p.volume) || 0, prs = Number(p.prs) || 0;
   const stat = (value: string, label: string) => (
     <Card style={{ flex: 1, alignItems: 'center', paddingVertical: 12 }}>
@@ -47,6 +47,8 @@ export default function Summary() {
         {stat(prs ? `🏆 ${prs}` : '0', prs === 1 ? 'PR' : 'PRs')}
       </View>
       {p.shared === '1' && <Txt color={t.sub} style={{ textAlign: 'center' }}>Shared with your pack.</Txt>}
+      {p.hevy === 'posted' && <Txt color={t.sub} style={{ textAlign: 'center' }}>📤 Posted to Hevy.</Txt>}
+      {p.hevy === 'queued' && <Txt color={t.sub} style={{ textAlign: 'center' }}>📤 Will post to Hevy when you’re back online.</Txt>}
       <Btn title="Good dog 🐕" onPress={() => router.back()} />
     </ScrollView>
   );

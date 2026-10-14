@@ -11,12 +11,22 @@ type HevyWorkout = { id: string; title: string; start_time: string; end_time: st
 type HevyEvent = { type: 'updated'; workout: HevyWorkout } | { type: 'deleted'; id: string };
 export type HevyUser = { username: string; name: string };
 
-export async function hevyGet<T>(path: string, key: string): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, { headers: { 'api-key': key, accept: 'application/json' } });
-  if (res.status === 401 || res.status === 403) throw new Error('Hevy rejected the API key. Copy it again from hevy.com/settings?developer (needs Hevy Pro).');
-  if (!res.ok) throw new Error(`Hevy API error ${res.status}. Try again in a bit.`);
+export async function hevyReq<T>(method: 'GET' | 'POST', path: string, key: string, body?: object): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    method,
+    headers: { 'api-key': key, accept: 'application/json', ...(body ? { 'content-type': 'application/json' } : {}) },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (res.status === 401) throw new Error('Hevy rejected the API key. Copy it again from hevy.com/settings?developer (needs Hevy Pro).');
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    if (/exceeds-custom-exercise-limit/.test(detail)) throw new Error('Your Hevy account has reached its custom exercise limit, so a new exercise could not be added there.');
+    if (res.status === 403) throw new Error('Hevy rejected the API key. Copy it again from hevy.com/settings?developer (needs Hevy Pro).');
+    throw new Error(`Hevy API error ${res.status}${detail ? `: ${detail.slice(0, 160)}` : ''}`);
+  }
   return res.json() as Promise<T>;
 }
+export const hevyGet = <T,>(path: string, key: string) => hevyReq<T>('GET', path, key);
 
 // Sets without reps (cardio / timed holds) are skipped, same as the CSV import.
 export function toImported(w: HevyWorkout): ImportedWorkout {

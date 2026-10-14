@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ExerciseForm, ExerciseList } from '../components/ExerciseList';
+import { postWorkoutToHevy } from '../components/HevyCard';
 import { OrderControls, PairBanner } from '../components/OrderControls';
 import { PRPopup, type PRInfo } from '../components/PRPopup';
 import { RestTimer, cancelRestNotification } from '../components/RestTimer';
@@ -73,8 +74,9 @@ export default function Active() {
     const done = d.blocks.flatMap(b => b.sets.filter(s => s.done));
     if (!done.length) return discard();
     setSaving(true);
+    let workoutId = 0;
     try {
-      await saveWorkout(db, d);
+      workoutId = await saveWorkout(db, d);
       await setDraft(db, null);
     } catch (e) {
       setSaving(false);
@@ -86,8 +88,9 @@ export default function Active() {
     if (supabase && (await supabase.auth.getSession()).data.session) {
       shared = !(await supabase.from('posts').insert({ title: d.name, summary })).error;
     }
+    const hevy = await postWorkoutToHevy(db, workoutId);
     const { minutes, volume, sets, prs } = summary;
-    router.replace({ pathname: '/summary', params: { name: d.name, minutes, volume, sets, prs, shared: shared ? 1 : 0 } });
+    router.replace({ pathname: '/summary', params: { name: d.name, minutes, volume, sets, prs, shared: shared ? 1 : 0, hevy } });
   };
 
   const saveAsRoutine = async () => {

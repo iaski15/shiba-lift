@@ -1,5 +1,6 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { DEFAULT_RANGE, e1rm, suggest, type Range, type S } from './progression';
+import { inGroup } from './superset';
 
 export type Exercise = {
   id: string;
@@ -37,7 +38,10 @@ export async function migrate(db: SQLiteDatabase) {
     // Workouts synced from Hevy before this had no warm-up flags: forget the sync point so the next sync re-pulls them all.
     await db.execAsync(`ALTER TABLE sets ADD COLUMN warmup INTEGER NOT NULL DEFAULT 0; DELETE FROM kv WHERE k = 'hevy_since';`);
   }
-  await db.execAsync('PRAGMA user_version = 4');
+  if (user_version < 5) {
+    await db.execAsync('ALTER TABLE exercises ADD COLUMN hevy_template TEXT; ALTER TABLE sets ADD COLUMN superset INTEGER;');
+  }
+  await db.execAsync('PRAGMA user_version = 5');
 }
 
 async function v1(db: SQLiteDatabase) {
@@ -103,11 +107,14 @@ export async function saveWorkout(db: SQLiteDatabase, d: Draft) {
   await db.withTransactionAsync(async () => {
     id = (await db.runAsync('INSERT INTO workouts (name, started_at, ended_at) VALUES (?, ?, ?)', d.name, d.startedAt, Date.now()))
       .lastInsertRowId;
-    for (const b of d.blocks) {
+    let group = 0;
+    for (const [bi, b] of d.blocks.entries()) {
+      if (bi === 0 || !d.blocks[bi - 1].linked) group++;
+      const superset = inGroup(d.blocks, bi) ? group : null; // same number = same superset (used when posting to Hevy)
       let idx = 0;
       for (const s of b.sets.filter(s => s.done)) {
-        await db.runAsync('INSERT INTO sets (workout_id, exercise_id, idx, weight, reps, warmup) VALUES (?, ?, ?, ?, ?, ?)',
-          id, b.ex.id, idx++, Number(s.weight), Number(s.reps), s.warmup ? 1 : 0);
+        await db.runAsync('INSERT INTO sets (workout_id, exercise_id, idx, weight, reps, warmup, superset) VALUES (?, ?, ?, ?, ?, ?, ?)',
+          id, b.ex.id, idx++, Number(s.weight), Number(s.reps), s.warmup ? 1 : 0, superset);
       }
     }
   });
