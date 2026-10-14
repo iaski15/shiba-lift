@@ -8,6 +8,7 @@ import { enqueuePush, pushEnabled, pushPending, setPushEnabled } from '../lib/he
 import { Btn, Card, Input, Txt, useTheme } from './ui';
 
 const KEY = 'hevy_api_key';
+const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
 
 // One sync at a time (launch auto-sync, the button and finishing a workout share it).
 // Order matters: post queued workouts first, so the pull that follows sees them as already linked (no duplicates).
@@ -74,8 +75,8 @@ export function HevyCard({ onSynced }: { onSynced: () => void }) {
       onSynced();
       await refresh();
       const changes = r.workouts || r.deleted || r.backfilled || r.posted
-        ? [r.posted && `${r.posted} posted to Hevy`, r.workouts && `${r.workouts} workouts updated (${r.sets} sets)`, r.backfilled && `${r.backfilled} missing workouts added`,
-          r.deleted && `${r.deleted} deleted`, r.newExercises && `${r.newExercises} new exercises`].filter(Boolean).join(' · ')
+        ? [r.posted && `${plural(r.posted, 'workout')} posted to Hevy`, r.workouts && `${plural(r.workouts, 'workout')} updated (${plural(r.sets, 'set')})`, r.backfilled && `${plural(r.backfilled, 'missing workout')} added`,
+          r.deleted && `${r.deleted} deleted`, r.newExercises && `${plural(r.newExercises, 'new exercise')}`].filter(Boolean).join(' · ')
         : 'Already up to date.';
       // Hevy's count can include workouts its list never returns, so judge completeness by the list when we fetched it.
       const total = r.listed ?? r.hevyTotal;

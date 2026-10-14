@@ -1,7 +1,8 @@
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useEffect, useState } from 'react';
-import { Alert, Modal, Pressable, ScrollView, View } from 'react-native';
+import { Alert, Modal, Platform, Pressable, ScrollView, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ExerciseList } from '../components/ExerciseList';
 import { OrderControls, PairBanner } from '../components/OrderControls';
 import { Btn, Card, Input, Txt, screenTheme, useTheme } from '../components/ui';
@@ -11,6 +12,7 @@ import { removeAt } from '../lib/superset';
 export default function RoutineEditor() {
   const db = useSQLiteContext();
   const t = useTheme();
+  const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id?: string }>();
   const rid = id ? Number(id) : undefined;
   const [name, setName] = useState('');
@@ -73,7 +75,7 @@ export default function RoutineEditor() {
       </ScrollView>
 
       <Modal visible={picking} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setPicking(false)}>
-        <View style={{ flex: 1, backgroundColor: t.bg, paddingTop: 16 }}>
+        <View style={{ flex: 1, backgroundColor: t.bg, paddingTop: (Platform.OS === 'android' ? insets.top : 0) + 16 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, marginBottom: 10 }}>
             <Txt weight="black" size={22} style={{ flex: 1 }}>Add exercise</Txt>
             <Btn small variant="ghost" title="Close" onPress={() => setPicking(false)} />

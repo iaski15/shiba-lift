@@ -204,7 +204,7 @@ export default function Active() {
       </View>
 
       <Modal visible={picking} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setPicking(false)}>
-        <View style={{ flex: 1, backgroundColor: t.bg, paddingTop: 16 }}>
+        <View style={{ flex: 1, backgroundColor: t.bg, paddingTop: (Platform.OS === 'android' ? insets.top : 0) + 16 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, marginBottom: 10 }}>
             <Txt weight="black" size={22} style={{ flex: 1 }}>Add exercise</Txt>
             <Btn small variant="ghost" title="Close" onPress={() => setPicking(false)} />
