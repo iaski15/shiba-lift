@@ -5,11 +5,9 @@ import { Alert, Pressable, ScrollView, View } from 'react-native';
 import { Shiba } from '../../components/Shiba';
 import { Btn, Card, Txt, kg, useTheme } from '../../components/ui';
 import {
-  getDraft, listRoutines, listWorkouts, makeBlock, routineBlocks, setDraft, workoutExercises,
+  getDraft, listRoutines, listWorkouts, makeBlock, newDraft, routineBlocks, setDraft, workoutExercises,
   type Block, type Draft, type Routine, type WorkoutRow,
 } from '../../lib/db';
-
-const newDraft = (name: string, blocks: Block[], routineId?: number): Draft => ({ name, startedAt: Date.now(), blocks, routineId });
 
 export default function Workout() {
   const db = useSQLiteContext();

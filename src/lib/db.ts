@@ -18,6 +18,9 @@ export type DraftSet = { weight: string; reps: string; done: boolean; warmup?: b
 export type Block = { ex: Exercise; prev: PrevSet[]; sugg: S[]; sets: DraftSet[]; linked?: boolean };
 export type PrevSet = S & { warmup: number };
 export type Draft = { name: string; startedAt: number; blocks: Block[]; prs?: number; routineId?: number; restEnd?: number };
+export const newDraft = (name: string, blocks: Block[], routineId?: number): Draft => ({ name, startedAt: Date.now(), blocks, routineId });
+// Typed weight/reps text -> number (empty = not typed, so the suggestion applies).
+export const num = (s: string) => (s.trim() === '' ? undefined : Number(s.replace(',', '.')));
 
 export async function migrate(db: SQLiteDatabase) {
   const { user_version } = (await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version'))!;

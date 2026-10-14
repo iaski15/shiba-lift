@@ -1,4 +1,4 @@
-// npm run build:apk → regenerates android/ from app.json, builds the release APK, copies it to release/ShibaLift.apk.
+// npm run build:apk → regenerates android/ from app.json, builds the release APK, copies it to release/ShibaLift.apk; then builds the watch app to release/ShibaLift-Watch.apk.
 // Finds the Android SDK and a JDK 17/21 on its own when ANDROID_HOME / JAVA_HOME aren't set.
 const { execSync } = require('child_process');
 const fs = require('fs');
@@ -58,3 +58,9 @@ const apk = path.join(root, 'android/app/build/outputs/apk/release/app-release.a
 fs.mkdirSync(path.join(root, 'release'), { recursive: true });
 fs.copyFileSync(apk, path.join(root, 'release/ShibaLift.apk'));
 console.log('\n✅ release/ShibaLift.apk is ready. Copy it to your phone and open it to install.');
+
+// Watch app (wear/): its own Gradle project with the phone's package name and signing key, so the two can talk.
+const wear = path.join(root, 'wear');
+run(`"${path.join(wear, win ? 'gradlew.bat' : 'gradlew')}" assembleRelease --no-daemon`, wear);
+fs.copyFileSync(path.join(wear, 'app/build/outputs/apk/release/app-release.apk'), path.join(root, 'release/ShibaLift-Watch.apk'));
+console.log('✅ release/ShibaLift-Watch.apk is ready. Install it on the watch with adb (see README).');

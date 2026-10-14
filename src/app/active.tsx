@@ -10,14 +10,14 @@ import { OrderControls, PairBanner } from '../components/OrderControls';
 import { PRPopup, type PRInfo } from '../components/PRPopup';
 import { RestTimer, cancelRestNotification } from '../components/RestTimer';
 import { Btn, Card, Txt, font, screenTheme, useTheme } from '../components/ui';
-import { getDraft, history, makeBlock, saveRoutine, saveWorkout, setDraft, suggestFor, type Draft } from '../lib/db';
+import { WatchActions, publishWatch } from '../components/WatchSync';
+import { getDraft, history, makeBlock, num, saveRoutine, saveWorkout, setDraft, suggestFor, type Draft } from '../lib/db';
 import { isPR } from '../lib/progression';
 import { removeAt } from '../lib/superset';
 import { supabase } from '../lib/supabase';
+import type { WatchAction } from '../lib/watch';
 
 const REST_SECONDS = 120; // ponytail: one global rest time; per-exercise rest if people ask
-
-const num = (s: string) => (s.trim() === '' ? undefined : Number(s.replace(',', '.')));
 
 export default function Active() {
   const db = useSQLiteContext();
@@ -37,7 +37,7 @@ export default function Active() {
       setD(x);
     });
   }, [db]);
-  useEffect(() => { if (d) setDraft(db, d); }, [db, d]); // persist every change so a crash never loses a session
+  useEffect(() => { if (d) setDraft(db, d).then(() => publishWatch(db)); }, [db, d]); // persist every change so a crash never loses a session
 
   const edit = (fn: (x: Draft) => void) => setD(prev => {
     const x: Draft = JSON.parse(JSON.stringify(prev));
@@ -51,11 +51,12 @@ export default function Active() {
   const restEnd = d.restEnd ?? null;
   const setRestEnd = (t: number | null) => edit(x => { x.restEnd = t ?? undefined; });
 
-  const toggle = async (bi: number, si: number) => {
+  // w/r: values set on the watch (they win over what's typed here).
+  const toggle = async (bi: number, si: number, w?: number, r?: number) => {
     const b = d.blocks[bi], s = b.sets[si];
     if (s.done) return edit(x => { x.blocks[bi].sets[si].done = false; });
     const sg = b.sugg[si] ?? b.sugg[b.sugg.length - 1];
-    const weight = num(s.weight) ?? sg?.weight, reps = num(s.reps) ?? sg?.reps;
+    const weight = w ?? num(s.weight) ?? sg?.weight, reps = r ?? num(s.reps) ?? sg?.reps;
     if (weight === undefined || reps === undefined || !(weight >= 0) || !(reps > 0) || !Number.isInteger(reps)) {
       return Alert.alert('Hmm 🐕', 'Enter a weight (0 for bodyweight) and whole reps first.');
     }
@@ -78,6 +79,7 @@ export default function Active() {
     try {
       workoutId = await saveWorkout(db, d);
       await setDraft(db, null);
+      publishWatch(db);
     } catch (e) {
       setSaving(false);
       return Alert.alert('Could not save', String(e));
@@ -93,6 +95,16 @@ export default function Active() {
     router.replace({ pathname: '/summary', params: { name: d.name, minutes, volume, sets, prs, shared: shared ? 1 : 0, hevy } });
   };
 
+  // Taps from the watch. Stale ones (set moved, or already in that state) are ignored.
+  const onWatch = (a: WatchAction) => {
+    if (a.type === 'rest') return edit(x => { x.restEnd = a.add && x.restEnd ? x.restEnd + a.add : undefined; });
+    if (a.type === 'finish') return !saving && d.blocks.some(b => b.sets.some(s => s.done)) && finish();
+    if (a.type === 'start') return;
+    const s = d.blocks[a.bi]?.sets[a.si];
+    if (!s || d.blocks[a.bi].ex.id !== a.ex || s.done === (a.type === 'set')) return;
+    return a.type === 'set' ? toggle(a.bi, a.si, a.w, a.r) : toggle(a.bi, a.si);
+  };
+
   const saveAsRoutine = async () => {
     const items = d.blocks.map(b => ({ id: b.ex.id, name: b.ex.name, sets: b.sets.length, linked: b.linked }));
     const id = await saveRoutine(db, { id: d.routineId, name: d.name.trim() || 'Routine', items });
@@ -102,7 +114,7 @@ export default function Active() {
 
   const discard = () => Alert.alert('Discard workout?', 'Nothing will be saved.', [
     { text: 'Keep going', style: 'cancel' },
-    { text: 'Discard', style: 'destructive', onPress: async () => { await setDraft(db, null); setD(null); cancelRestNotification(); router.back(); } },
+    { text: 'Discard', style: 'destructive', onPress: async () => { await setDraft(db, null); publishWatch(db); setD(null); cancelRestNotification(); router.back(); } },
   ]);
 
   return (
@@ -227,6 +239,7 @@ export default function Active() {
       )}
 
       <PRPopup pr={pr} onClose={() => setPr(null)} />
+      <WatchActions onAction={onWatch} />
     </View>
   );
 }

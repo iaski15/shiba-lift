@@ -61,6 +61,23 @@ On the Workout tab, use **+ New routine** to build your Push / Pull / Legs: set 
 - Hevy's API has no friends or followers, so the social side stays in Shiba Lift.
 - Hevy's workout *count* can be one or two higher than the workouts its API actually lists (e.g. deleted or in-progress ones); the sync checks against the list.
 
+## Watch app (Galaxy Watch / Wear OS)
+Follow your workout from the watch: current set with −/+ for weight and reps, ✓ to log it, the rest countdown (buzzes when it's over, −15/+15/Skip), every set of every exercise, and Finish. With no workout going you can start an empty one or a routine. The phone app runs the workout: taps on the watch go through the same code as taps on the phone (PRs, rest timer, Hevy post), so the two always agree.
+
+`npm run build:apk` also builds `release/ShibaLift-Watch.apk` (source in `wear/`). Install it on the watch once, over Wi-Fi:
+1. Install the new `release/ShibaLift.apk` on the phone (the watch only talks to a phone app with the same signing key).
+2. On the watch: **Settings → About watch → Software information**, tap **Software version** 5 times. Then **Settings → Developer options**: turn on **ADB debugging** and **Wireless debugging** (watch and PC on the same Wi-Fi).
+3. In **Wireless debugging → Pair new device**, then on the PC:
+```
+adb pair <ip>:<pairing port>      # enter the code shown on the watch
+adb connect <ip>:<port>           # the port on the Wireless debugging screen (not the pairing one)
+adb -s <ip>:<port> install -r release/ShibaLift-Watch.apk
+```
+`adb` is in the Android SDK's `platform-tools` folder. Afterwards you can turn Wireless debugging off again.
+
+- Taps made while the phone app is closed are kept and applied the next time it opens (a "start workout" only if it's under 2 minutes old). Keep the phone app open in the background during a workout for live sync; Samsung's battery saver may close it otherwise.
+- The rest-over notification from the phone also shows on the watch.
+
 ## Import from Hevy (CSV, no Pro needed)
 1. In Hevy, go to **Profile → ⚙️ Settings → Export & Import Data → Export Workouts**. You get a `.csv` file.
 2. Put the file on your phone, open the **Me** tab and tap **📥 Import Hevy workouts (CSV)**.

@@ -3,6 +3,7 @@ import { Stack } from 'expo-router';
 import { SQLiteProvider, useSQLiteContext } from 'expo-sqlite';
 import { useEffect } from 'react';
 import { autoSyncHevy } from '../components/HevyCard';
+import { WatchSync } from '../components/WatchSync';
 import { StatusBar } from 'expo-status-bar';
 import { font, useTheme } from '../components/ui';
 import { migrate } from '../lib/db';
@@ -15,6 +16,7 @@ export default function Root() {
     <SQLiteProvider databaseName="shiba.db" onInit={migrate}>
       <StatusBar style="auto" />
       <HevyAutoSync />
+      <WatchSync />
       <Stack
         screenOptions={{
           headerStyle: { backgroundColor: t.bg },

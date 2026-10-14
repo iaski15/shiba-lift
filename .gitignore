@@ -46,3 +46,6 @@ yarn-error.*
 
 # local agent instructions
 AGENTS.md
+
+# native module build output
+/modules/*/android/build
