@@ -56,6 +56,7 @@ export function Input({ style, ...p }: TextInputProps) {
 }
 
 export const kg = (n: number) => (n >= 1000 ? `${Math.round(n).toLocaleString()} kg` : `${Math.round(n * 10) / 10} kg`);
+export const setText = (s: { weight: number; reps: number; warmup?: number }) => `${s.warmup ? 'W ' : ''}${s.weight} × ${s.reps}`;
 
 // Stack screens re-apply these themselves: the root Stack's options don't follow a live light/dark switch.
 export const screenTheme = (t: Theme) => ({

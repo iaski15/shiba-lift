@@ -51,6 +51,29 @@ export const prLabel: Record<PR, string> = {
   reps: 'Most reps at this weight',
 };
 
+// One exercise in one workout, working sets only: heaviest weight and total reps done at it.
+export type Session = { workout_id: number; exercise_id: string; top: number; reps: number };
+export const sessionKey = (s: { workout_id: number; exercise_id: string }) => `${s.workout_id}:${s.exercise_id}`;
+
+// Sessions oldest first. Beat last time = heavier top weight, or the same top weight for more total reps.
+// `up` = keys of sessions that beat the previous one of that exercise. A workout extends the streak if any exercise
+// went up and breaks it if none did; a workout of only new exercises has nothing to compare, so it does neither.
+export function overload(sessions: Session[]) {
+  const last = new Map<string, Session>(), up = new Set<string>(), byWorkout = new Map<number, boolean>();
+  for (const s of sessions) {
+    const p = last.get(s.exercise_id);
+    if (p) {
+      const beat = s.top > p.top || (s.top === p.top && s.reps > p.reps);
+      if (beat) up.add(sessionKey(s));
+      byWorkout.set(s.workout_id, (byWorkout.get(s.workout_id) ?? false) || beat);
+    }
+    last.set(s.exercise_id, s);
+  }
+  let current = 0, best = 0;
+  for (const beat of byWorkout.values()) { current = beat ? current + 1 : 0; best = Math.max(best, current); }
+  return { up, byWorkout, current, best };
+}
+
 export const DEFAULT_RANGE: Range = { rep_min: 8, rep_max: 12, increment: 2.5 };
 
 // Text fields -> Range, or an error message to show.

@@ -1,8 +1,12 @@
 import { router, useFocusEffect } from 'expo-router';
+import { useSQLiteContext } from 'expo-sqlite';
 import { useCallback, useState } from 'react';
 import { FlatList, Pressable, RefreshControl, View } from 'react-native';
+import { Chart } from '../../components/Chart';
 import { Shiba } from '../../components/Shiba';
-import { Btn, Card, Input, Txt, kg, useTheme } from '../../components/ui';
+import { Btn, Card, Input, Txt, kg, setText, useTheme } from '../../components/ui';
+import { listWorkouts, overloadSessions, workoutSets, type SetRow, type WorkoutRow } from '../../lib/db';
+import { overload, sessionKey } from '../../lib/progression';
 import { supabase, useSession } from '../../lib/supabase';
 
 type Post = {
@@ -41,34 +45,100 @@ export default function Feed() {
   }, [uid]);
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
-  if (!supabase || !uid) {
-    return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 12 }}>
-        <Shiba size={120} mood="sleepy" />
-        <Txt weight="black" size={22}>Your pack is sleeping</Txt>
-        <Txt color={t.sub} style={{ textAlign: 'center' }}>
-          {supabase ? 'Sign in to follow friends, share workouts and give paws.' : 'Social is off. Add your Supabase keys to .env (see README) to enable it. Tracking works fully offline.'}
-        </Txt>
-        {supabase && <Btn title="Sign in / Sign up" onPress={() => router.push('/auth')} />}
-      </View>
-    );
-  }
-
+  const signedIn = !!supabase && !!uid;
   return (
     <FlatList
-      data={posts}
+      data={signedIn ? posts : []}
       keyExtractor={p => String(p.id)}
       contentContainerStyle={{ padding: 16, gap: 12 }}
-      refreshControl={<RefreshControl refreshing={loading} onRefresh={load} tintColor={t.primary} />}
-      ListEmptyComponent={!loading ? (
+      refreshControl={signedIn ? <RefreshControl refreshing={loading} onRefresh={load} tintColor={t.primary} /> : undefined}
+      ListHeaderComponent={<MyLifts />}
+      ListEmptyComponent={!signedIn ? (
+        <View style={{ alignItems: 'center', gap: 12, marginTop: 24 }}>
+          <Shiba size={120} mood="sleepy" />
+          <Txt weight="black" size={22}>Your pack is sleeping</Txt>
+          <Txt color={t.sub} style={{ textAlign: 'center' }}>
+            {supabase ? 'Sign in to follow friends, share workouts and give paws.' : 'Social is off. Add your Supabase keys to .env (see README) to enable it. Tracking works fully offline.'}
+          </Txt>
+          {supabase && <Btn title="Sign in / Sign up" onPress={() => router.push('/auth')} />}
+        </View>
+      ) : !loading ? (
         <View style={{ alignItems: 'center', gap: 8, marginTop: 40 }}>
           <Shiba size={100} />
           <Txt weight="bold">No workouts yet.</Txt>
           <Txt color={t.sub} style={{ textAlign: 'center' }}>Finish a workout or follow friends from the Me tab.</Txt>
         </View>
       ) : null}
-      renderItem={({ item }) => <PostCard p={item} uid={uid} reload={load} />}
+      renderItem={({ item }) => <PostCard p={item} uid={uid!} reload={load} />}
     />
+  );
+}
+
+// Your own lifts (local, works offline): overload streak, volume chart, and workouts that expand into their sets.
+function MyLifts() {
+  const db = useSQLiteContext();
+  const t = useTheme();
+  const [workouts, setWorkouts] = useState<WorkoutRow[]>([]);
+  const [ov, setOv] = useState(() => overload([]));
+  const [shown, setShown] = useState(5);
+  useFocusEffect(useCallback(() => {
+    listWorkouts(db).then(setWorkouts);
+    overloadSessions(db).then(s => setOv(overload(s)));
+  }, [db]));
+  if (!workouts.length) return null;
+
+  return (
+    <View style={{ gap: 12, marginBottom: 4 }}>
+      <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+        <Shiba size={64} mood={ov.current ? 'hype' : 'sleepy'} />
+        <View style={{ flex: 1, gap: 2 }}>
+          <Txt weight="black" size={22} color={t.primaryDark}>🔥 {ov.current} workout{ov.current === 1 ? '' : 's'}</Txt>
+          <Txt weight="bold" size={13}>Progressive overload streak · best {ov.best}</Txt>
+          <Txt size={12} color={t.sub}>Workouts in a row where you beat last time on at least one exercise: more weight, or more reps at your top weight.</Txt>
+        </View>
+      </Card>
+      <Card style={{ gap: 8 }}>
+        <Txt weight="black">Weight lifted per workout</Txt>
+        <Chart points={workouts.slice(0, 20).reverse().map(w => ({ t: w.started_at, y: w.volume }))} fmt={kg} />
+      </Card>
+      <Txt weight="black" size={18}>My workouts</Txt>
+      {workouts.slice(0, shown).map(w => <WorkoutCard key={w.id} w={w} up={ov.up} streak={ov.byWorkout.get(w.id)} />)}
+      {shown < workouts.length && <Btn small variant="ghost" title="Show more" onPress={() => setShown(shown + 10)} />}
+      <Txt weight="black" size={18} style={{ marginTop: 8 }}>🐾 Pack</Txt>
+    </View>
+  );
+}
+
+function WorkoutCard({ w, up, streak }: { w: WorkoutRow; up: Set<string>; streak?: boolean }) {
+  const db = useSQLiteContext();
+  const t = useTheme();
+  const [sets, setSets] = useState<SetRow[] | null>(null);
+  const toggle = async () => setSets(sets ? null : await workoutSets(db, w.id));
+  const byEx = new Map<string, SetRow[]>();
+  for (const s of sets ?? []) byEx.set(s.exercise_id, [...(byEx.get(s.exercise_id) ?? []), s]);
+
+  return (
+    <Card style={{ gap: 8 }}>
+      <Pressable onPress={toggle} accessibilityRole="button" accessibilityState={{ expanded: !!sets }} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <View style={{ flex: 1 }}>
+          <Txt weight="bold">{w.name}{streak ? ' 🔥' : ''}</Txt>
+          <Txt size={12} color={t.sub}>
+            {new Date(w.started_at).toLocaleDateString()} · {Math.round((w.ended_at - w.started_at) / 60000)} min · {w.sets} set{w.sets === 1 ? '' : 's'} · {kg(w.volume)}
+          </Txt>
+        </View>
+        <Txt weight="black" color={t.primary} size={18}>{sets ? '▾' : '▸'}</Txt>
+      </Pressable>
+      {[...byEx].map(([id, ss]) => (
+        <Pressable key={id} onPress={() => router.push({ pathname: '/exercise', params: { id } })} accessibilityRole="button"
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 8, borderTopWidth: 1, borderColor: t.line, paddingTop: 8 }}>
+          <View style={{ flex: 1, gap: 2 }}>
+            <Txt weight="bold">{ss[0].name}{up.has(sessionKey(ss[0])) && <Txt weight="bold" color={t.good}> ▲ beat last time</Txt>}</Txt>
+            <Txt size={13} color={t.sub}>{ss.map(setText).join(' · ')}</Txt>
+          </View>
+          <Txt weight="black" color={t.primary} size={18}>›</Txt>
+        </Pressable>
+      ))}
+    </Card>
   );
 }
 

@@ -1,5 +1,5 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
-import { DEFAULT_RANGE, e1rm, suggest, type Range, type S } from './progression';
+import { DEFAULT_RANGE, e1rm, suggest, type Range, type S, type Session } from './progression';
 import { inGroup } from './superset';
 
 export type Exercise = {
@@ -135,7 +135,25 @@ export const workoutExercises = (db: SQLiteDatabase, workoutId: number) =>
   db.getAllAsync<Exercise>(`SELECT e.* FROM sets s JOIN exercises e ON e.id = s.exercise_id
     WHERE s.workout_id = ? GROUP BY e.id ORDER BY MIN(s.id)`, workoutId);
 
-export type PRRow = { name: string; weight: number; best: number };
+export type SetRow = { workout_id: number; started_at: number; exercise_id: string; name: string; weight: number; reps: number; warmup: number };
+// Every set of one workout (exercises in the order they were done), or of one exercise across all workouts (newest first).
+export const workoutSets = (db: SQLiteDatabase, workoutId: number) =>
+  db.getAllAsync<SetRow>(`SELECT s.workout_id, w.started_at, s.exercise_id, e.name, s.weight, s.reps, s.warmup FROM sets s
+    JOIN workouts w ON w.id = s.workout_id JOIN exercises e ON e.id = s.exercise_id WHERE s.workout_id = ? ORDER BY s.id`, workoutId);
+export const exerciseSets = (db: SQLiteDatabase, exId: string) =>
+  db.getAllAsync<SetRow>(`SELECT s.workout_id, w.started_at, s.exercise_id, e.name, s.weight, s.reps, s.warmup FROM sets s
+    JOIN workouts w ON w.id = s.workout_id JOIN exercises e ON e.id = s.exercise_id WHERE s.exercise_id = ? ORDER BY w.started_at DESC, w.id DESC, s.idx`, exId);
+
+// Per workout and exercise, oldest first: heaviest working weight and total reps at it (input for progression's `overload`).
+export const overloadSessions = (db: SQLiteDatabase, exId?: string) =>
+  db.getAllAsync<Session>(`WITH t AS (SELECT workout_id, exercise_id, MAX(weight) AS top FROM sets
+      WHERE warmup = 0${exId ? ' AND exercise_id = ?' : ''} GROUP BY workout_id, exercise_id)
+    SELECT t.workout_id, t.exercise_id, t.top, SUM(s.reps) AS reps FROM t
+    JOIN sets s ON s.workout_id = t.workout_id AND s.exercise_id = t.exercise_id AND s.weight = t.top AND s.warmup = 0
+    JOIN workouts w ON w.id = t.workout_id
+    GROUP BY t.workout_id, t.exercise_id ORDER BY w.started_at, w.id`, exId ? [exId] : []);
+
+export type PRRow ={ name: string; weight: number; best: number };
 // Best reps at each weight per exercise is enough to find both the heaviest weight and the best estimated 1RM.
 export async function personalRecords(db: SQLiteDatabase): Promise<PRRow[]> {
   const rows = await db.getAllAsync<{ id: string; name: string; weight: number; reps: number }>(

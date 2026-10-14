@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { suggest, isPR, e1rm, parseRange } from './progression';
+import { suggest, isPR, e1rm, parseRange, overload, sessionKey } from './progression';
 
 const r = { rep_min: 8, rep_max: 12, increment: 2.5 };
 
@@ -45,5 +45,20 @@ assert.equal(typeof parseRange({ rep_min: '', rep_max: '12', increment: '2.5' })
 assert.deepEqual(suggest([{ weight: 100, reps: 5 }, { weight: 100, reps: 5 }], { rep_min: 5, rep_max: 5, increment: 5 }), [
   { weight: 105, reps: 5 }, { weight: 105, reps: 5 },
 ]);
+
+// overload streak: workout 3 only has a new exercise (neutral), workout 4 regresses (breaks), 5 and 6 beat it
+const ses = (workout_id: number, exercise_id: string, top: number, reps: number) => ({ workout_id, exercise_id, top, reps });
+const o = overload([
+  ses(1, 'bench', 60, 24), ses(1, 'squat', 100, 15),
+  ses(2, 'bench', 60, 26), ses(2, 'squat', 95, 30), // more reps at the same top weight = up, lighter squat doesn't matter
+  ses(3, 'curl', 12, 30),
+  ses(4, 'bench', 60, 20),
+  ses(5, 'bench', 62.5, 16), // heavier = up even with fewer reps
+  ses(6, 'squat', 100, 15), // vs workout 2's 95 kg
+]);
+assert.deepEqual([...o.byWorkout], [[2, true], [4, false], [5, true], [6, true]]);
+assert.deepEqual({ current: o.current, best: o.best }, { current: 2, best: 2 });
+assert.ok(o.up.has(sessionKey({ workout_id: 2, exercise_id: 'bench' })) && !o.up.has('2:squat') && o.up.has('6:squat'));
+assert.deepEqual({ ...overload([]), up: 0, byWorkout: 0 }, { up: 0, byWorkout: 0, current: 0, best: 0 });
 
 console.log('progression ok 🐕');
