@@ -1,5 +1,5 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
-import { DEFAULT_RANGE, e1rm, suggest, type Range, type S, type Session } from './progression';
+import { DEFAULT_RANGE, e1rm, stalled, suggest, type Range, type S, type Session } from './progression';
 import { inGroup } from './superset';
 
 export type Exercise = {
@@ -14,13 +14,15 @@ export type Exercise = {
 };
 export type DraftSet = { weight: string; reps: string; done: boolean; warmup?: boolean };
 // linked = superset with the next block (rest only starts after the last exercise of the superset).
-// prev/sugg/sets line up by index; a warm-up's suggestion is just last time's warm-up.
-export type Block = { ex: Exercise; prev: PrevSet[]; sugg: S[]; sets: DraftSet[]; linked?: boolean };
+// prev/sugg/sets line up by index; a warm-up's suggestion is just last time's warm-up. deload = lift has stalled (see progression).
+export type Block = { ex: Exercise; prev: PrevSet[]; sugg: S[]; sets: DraftSet[]; linked?: boolean; deload?: boolean };
 export type PrevSet = S & { warmup: number };
 export type Draft = { name: string; startedAt: number; blocks: Block[]; prs?: number; routineId?: number; restEnd?: number };
 export const newDraft = (name: string, blocks: Block[], routineId?: number): Draft => ({ name, startedAt: Date.now(), blocks, routineId });
 // Typed weight/reps text -> number (empty = not typed, so the suggestion applies).
 export const num = (s: string) => (s.trim() === '' ? undefined : Number(s.replace(',', '.')));
+
+export const SCHEMA = 6;
 
 export async function migrate(db: SQLiteDatabase) {
   const { user_version } = (await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version'))!;
@@ -44,7 +46,8 @@ export async function migrate(db: SQLiteDatabase) {
   if (user_version < 5) {
     await db.execAsync('ALTER TABLE exercises ADD COLUMN hevy_template TEXT; ALTER TABLE sets ADD COLUMN superset INTEGER;');
   }
-  await db.execAsync('PRAGMA user_version = 5');
+  if (user_version < 6) await db.execAsync('CREATE TABLE bodyweight (at INTEGER PRIMARY KEY, kg REAL NOT NULL);');
+  await db.execAsync(`PRAGMA user_version = ${SCHEMA}`);
 }
 
 async function v1(db: SQLiteDatabase) {
@@ -97,12 +100,13 @@ export async function makeBlock(db: SQLiteDatabase, ex: Exercise, sets?: number,
   const n = sets || work.length || 3;
   const empty = (warmup: boolean): DraftSet => ({ weight: '', reps: '', done: false, warmup });
   const prev = [...warm, ...work.slice(0, n)];
-  return { ex, linked, prev, sugg: suggestFor(prev, ex), sets: [...warm.map(() => empty(true)), ...Array.from({ length: n }, () => empty(false))] };
+  const deload = (await deloadOn(db)) && stalled(await overloadSessions(db, ex.id));
+  return { ex, linked, prev, deload, sugg: suggestFor(prev, ex, deload), sets: [...warm.map(() => empty(true)), ...Array.from({ length: n }, () => empty(false))] };
 }
 
 // Suggestions lined up with `prev`: warm-ups repeat as they were, working sets follow the exercise's progression rule.
-export function suggestFor(prev: PrevSet[], ex: Range): S[] {
-  return [...prev.filter(s => s.warmup), ...suggest(prev.filter(s => !s.warmup), ex)];
+export function suggestFor(prev: PrevSet[], ex: Range, deload?: boolean): S[] {
+  return [...prev.filter(s => s.warmup), ...suggest(prev.filter(s => !s.warmup), ex, deload)];
 }
 
 export async function saveWorkout(db: SQLiteDatabase, d: Draft) {
@@ -276,6 +280,10 @@ export const getKv = async (db: SQLiteDatabase, k: string) => (await db.getFirst
 export const setKv = (db: SQLiteDatabase, k: string, v: string | null) =>
   v === null ? db.runAsync('DELETE FROM kv WHERE k = ?', k) : db.runAsync('REPLACE INTO kv (k, v) VALUES (?, ?)', k, v);
 
+// Deload suggestions (on unless turned off in Progression settings).
+export const deloadOn = async (db: SQLiteDatabase) => (await getKv(db, 'deload_off')) !== '1';
+export const setDeloadOn = (db: SQLiteDatabase, on: boolean) => setKv(db, 'deload_off', on ? null : '1');
+
 // Progression defaults: used for new/custom/imported exercises; "apply to all" also rewrites every exercise.
 export const getProgDefaults = async (db: SQLiteDatabase): Promise<Range> => {
   const v = await getKv(db, 'prog_defaults');
@@ -284,4 +292,15 @@ export const getProgDefaults = async (db: SQLiteDatabase): Promise<Range> => {
 export async function setProgDefaults(db: SQLiteDatabase, r: Range, applyToAll: boolean) {
   await setKv(db, 'prog_defaults', JSON.stringify(r));
   if (applyToAll) await db.runAsync('UPDATE exercises SET rep_min = ?, rep_max = ?, increment = ?', r.rep_min, r.rep_max, r.increment);
+}
+
+// Bodyweight log: one entry per day (logging again the same day replaces it).
+export type BodyweightRow = { at: number; kg: number };
+export const listBodyweight = (db: SQLiteDatabase) => db.getAllAsync<BodyweightRow>('SELECT * FROM bodyweight ORDER BY at');
+export async function logBodyweight(db: SQLiteDatabase, kg: number) {
+  const today = new Date().setHours(0, 0, 0, 0);
+  await db.withTransactionAsync(async () => {
+    await db.runAsync('DELETE FROM bodyweight WHERE at >= ?', today);
+    await db.runAsync('INSERT INTO bodyweight (at, kg) VALUES (?, ?)', Date.now(), kg);
+  });
 }

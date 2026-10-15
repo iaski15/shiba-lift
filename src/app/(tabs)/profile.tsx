@@ -2,12 +2,15 @@ import { router, useFocusEffect } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useCallback, useEffect, useState } from 'react';
 import * as DocumentPicker from 'expo-document-picker';
+import { Directory } from 'expo-file-system';
 import { Alert, ScrollView, View } from 'react-native';
+import { Chart } from '../../components/Chart';
 import { HevyCard } from '../../components/HevyCard';
 import { Shiba } from '../../components/Shiba';
 import { Btn, Card, Input, Txt, kg, useTheme } from '../../components/ui';
 import { parseHevy } from '../../lib/csv';
-import { importWorkouts, listWorkouts, personalRecords, totals, type PRRow, type WorkoutRow } from '../../lib/db';
+import { exportAll, parseBackup, restoreAll } from '../../lib/backup';
+import { SCHEMA, importWorkouts, listBodyweight, listWorkouts, logBodyweight, num, personalRecords, totals, type BodyweightRow, type PRRow, type WorkoutRow } from '../../lib/db';
 import { supabase, useSession } from '../../lib/supabase';
 
 export default function Profile() {
@@ -17,9 +20,11 @@ export default function Profile() {
   const [prs, setPrs] = useState<PRRow[]>([]);
   const [tot, setTot] = useState({ workouts: 0, volume: 0 });
   const [importing, setImporting] = useState(false);
+  const [bw, setBw] = useState<BodyweightRow[]>([]);
 
   const load = useCallback(() => {
     listWorkouts(db).then(setWorkouts);
+    listBodyweight(db).then(setBw);
     personalRecords(db).then(setPrs);
     totals(db).then(setTot);
   }, [db]);
@@ -45,6 +50,34 @@ ${r.skipped} already imported, skipped.` : ''));
     }
   };
 
+  // Without Hevy Pro the phone is the only copy of the history: let it go to a file (Drive, Downloads…) and come back.
+  const backup = async () => {
+    try {
+      const dir = await Directory.pickDirectoryAsync();
+      const file = dir.createFile(`shiba-lift-backup-${new Date().toISOString().slice(0, 10)}.json`, 'application/json');
+      file.write(JSON.stringify(await exportAll(db, SCHEMA)));
+      Alert.alert('Backed up 🐾', `Saved ${file.name ?? 'the backup'}. Keep it somewhere safe, like Google Drive.`);
+    } catch (e) {
+      if (!/cancel/i.test(String(e))) Alert.alert('Backup failed', e instanceof Error ? e.message : String(e));
+    }
+  };
+  const restore = async () => {
+    const pick = await DocumentPicker.getDocumentAsync({ type: '*/*', copyToCacheDirectory: true });
+    if (pick.canceled) return;
+    try {
+      const b = parseBackup(await (await fetch(pick.assets[0].uri)).text(), SCHEMA);
+      Alert.alert('Restore this backup?', `From ${new Date(b.exportedAt).toLocaleString()}: ${b.tables.workouts.length} workouts. It replaces everything on this phone.`, [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Restore', style: 'destructive', onPress: async () => {
+          try { await restoreAll(db, b); load(); Alert.alert('Restored 🐾', 'Your history is back.'); }
+          catch (e) { Alert.alert('Restore failed', `Nothing was changed. ${e instanceof Error ? e.message : String(e)}`); }
+        } },
+      ]);
+    } catch (e) {
+      Alert.alert('Restore failed', e instanceof Error ? e.message : String(e));
+    }
+  };
+
   return (
     <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
       <Social />
@@ -63,6 +96,12 @@ ${r.skipped} already imported, skipped.` : ''));
       <Btn variant="ghost" title="⚙️ Progression settings" onPress={() => router.push('/settings')} />
       <HevyCard onSynced={load} />
       <Btn variant="ghost" title={importing ? 'Importing…' : '📥 Import Hevy workouts (CSV)'} disabled={importing} onPress={importHevy} />
+      <View style={{ flexDirection: 'row', gap: 8 }}>
+        <View style={{ flex: 1 }}><Btn small variant="ghost" title="💾 Back up to file" onPress={backup} /></View>
+        <View style={{ flex: 1 }}><Btn small variant="ghost" title="♻️ Restore backup" onPress={restore} /></View>
+      </View>
+
+      <Bodyweight rows={bw} onLogged={load} />
 
       <Txt weight="black" size={18}>🏆 Personal records</Txt>
       <Card style={{ gap: 6 }}>
@@ -87,6 +126,29 @@ ${r.skipped} already imported, skipped.` : ''));
         </Card>
       ))}
     </ScrollView>
+  );
+}
+
+function Bodyweight({ rows, onLogged }: { rows: BodyweightRow[]; onLogged: () => void }) {
+  const db = useSQLiteContext();
+  const [text, setText] = useState('');
+  const log = async () => {
+    const v = num(text);
+    if (v === undefined || !(v >= 20 && v <= 400)) return Alert.alert('Hmm 🐕', 'Enter your bodyweight in kg, e.g. 78.5.');
+    await logBodyweight(db, v);
+    setText('');
+    onLogged();
+  };
+  return (
+    <Card style={{ gap: 10 }}>
+      <Txt weight="black" size={18}>⚖️ Bodyweight</Txt>
+      <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+        <Input style={{ flex: 1 }} keyboardType="decimal-pad" placeholder={rows.length ? `Last: ${rows[rows.length - 1].kg} kg` : 'Today’s weight (kg)'}
+          value={text} onChangeText={setText} onSubmitEditing={log} />
+        <Btn small title="Log" onPress={log} />
+      </View>
+      {rows.length > 0 && <Chart points={rows.slice(-60).map(r => ({ t: r.at, y: r.kg }))} fmt={kg} change />}
+    </Card>
   );
 }
 

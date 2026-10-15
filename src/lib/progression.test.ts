@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { suggest, isPR, e1rm, parseRange, overload, sessionKey } from './progression';
+import { suggest, isPR, e1rm, parseRange, overload, sessionKey, stalled, deloadWeight, plates } from './progression';
 
 const r = { rep_min: 8, rep_max: 12, increment: 2.5 };
 
@@ -60,5 +60,23 @@ assert.deepEqual([...o.byWorkout], [[2, true], [4, false], [5, true], [6, true]]
 assert.deepEqual({ current: o.current, best: o.best }, { current: 2, best: 2 });
 assert.ok(o.up.has(sessionKey({ workout_id: 2, exercise_id: 'bench' })) && !o.up.has('2:squat') && o.up.has('6:squat'));
 assert.deepEqual({ ...overload([]), up: 0, byWorkout: 0 }, { up: 0, byWorkout: 0, current: 0, best: 0 });
+
+// deload: 3 sessions stuck at 100 kg -> stalled; 10% off, rounded to the increment, warm-up untouched
+assert.ok(stalled([ses(1, 'b', 100, 24), ses(2, 'b', 100, 22), ses(3, 'b', 100, 24)]));
+assert.ok(!stalled([ses(1, 'b', 100, 24), ses(2, 'b', 100, 22), ses(3, 'b', 100, 25)])); // more reps = progress
+assert.ok(!stalled([ses(1, 'b', 100, 24), ses(2, 'b', 100, 22), ses(3, 'b', 90, 24)])); // already deloaded
+assert.ok(!stalled([ses(1, 'b', 100, 24), ses(2, 'b', 100, 22)]));
+assert.ok(!stalled([ses(1, 'b', 0, 20), ses(2, 'b', 0, 20), ses(3, 'b', 0, 20)])); // bodyweight
+assert.deepEqual(suggest([{ weight: 40, reps: 8 }, { weight: 100, reps: 9 }], r, true), [{ weight: 40, reps: 8 }, { weight: 90, reps: 9 }]);
+assert.equal(deloadWeight(62.5, 2.5), 57.5);
+assert.equal(deloadWeight(10, 2.5), 7.5); // always at least one increment lighter
+assert.deepEqual(suggest([{ weight: 2.5, reps: 10 }], r, true), [{ weight: 2.5, reps: 11 }]); // can't go lighter: normal rule
+
+// plates per side
+assert.deepEqual(plates(100), { plates: [25, 15], rest: 0, underBar: false });
+assert.deepEqual(plates(62.5), { plates: [20, 1.25], rest: 0, underBar: false });
+assert.deepEqual(plates(20), { plates: [], rest: 0, underBar: false });
+assert.deepEqual(plates(21), { plates: [], rest: 0.5, underBar: false });
+assert.equal(plates(10).underBar, true);
 
 console.log('progression ok 🐕');

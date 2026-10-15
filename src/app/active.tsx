@@ -12,7 +12,7 @@ import { RestTimer, cancelRestNotification } from '../components/RestTimer';
 import { Btn, Card, Txt, font, screenTheme, useTheme } from '../components/ui';
 import { WatchActions, publishWatch } from '../components/WatchSync';
 import { getDraft, history, makeBlock, num, saveRoutine, saveWorkout, setDraft, suggestFor, type Draft } from '../lib/db';
-import { isPR } from '../lib/progression';
+import { isPR, plates } from '../lib/progression';
 import { removeAt } from '../lib/superset';
 import { supabase } from '../lib/supabase';
 import type { WatchAction } from '../lib/watch';
@@ -29,6 +29,7 @@ export default function Active() {
   const [pairFrom, setPairFrom] = useState<number | null>(null);
   const [editingEx, setEditingEx] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
+  const [plateFor, setPlateFor] = useState<string | null>(null); // `${bi}:${si}` of the focused weight field
 
   useEffect(() => {
     getDraft(db).then(x => {
@@ -147,7 +148,8 @@ export default function Active() {
                   <Txt weight="black" size={17} color={t.primaryDark}>{b.ex.name}</Txt>
                   <Txt size={12} color={t.sub} onPress={() => setEditingEx(bi)} accessibilityRole="button" accessibilityLabel={`Change progression for ${b.ex.name}`}>
                     {b.ex.rep_min}–{b.ex.rep_max} reps · +{b.ex.increment} kg at top ✎
-                    {b.sugg.length > 0 && b.sugg[b.sugg.length - 1].weight > (b.prev[b.prev.length - 1]?.weight ?? 0) ? ' · ⬆ Time to go heavier!' : ''}
+                    {b.deload ? ' · ⬇ Stuck 3 sessions: deload ~10% and build back up'
+                      : b.sugg.length > 0 && b.sugg[b.sugg.length - 1].weight > (b.prev[b.prev.length - 1]?.weight ?? 0) ? ' · ⬆ Time to go heavier!' : ''}
                   </Txt>
                 </View>
                 <Pressable hitSlop={10} accessibilityLabel="Remove exercise" onPress={() => Alert.alert('Remove exercise?', b.ex.name, [
@@ -169,8 +171,10 @@ export default function Active() {
                 const p = b.prev[si];
                 const label = s.warmup ? 'W' : String(b.sets.slice(0, si + 1).filter(o => !o.warmup).length);
                 const cell = { width: 66, textAlign: 'center' as const, fontFamily: font.bold, fontSize: 16, color: t.text, backgroundColor: s.done ? 'transparent' : t.input, borderRadius: 10, paddingVertical: 6 };
+                const plateW = plateFor === `${bi}:${si}` && b.ex.equipment === 'barbell' ? num(s.weight) ?? sg?.weight : undefined;
                 return (
-                  <View key={`${si}:${sg?.weight}x${sg?.reps}`} /* new key when the hint changes: Android never repaints a changed placeholder */ style={{ flexDirection: 'row', gap: 8, alignItems: 'center', backgroundColor: s.done ? t.good + '33' : 'transparent', borderRadius: 12, padding: 4 }}>
+                  <View key={`${si}:${sg?.weight}x${sg?.reps}`}>
+                  <View /* new key when the hint changes: Android never repaints a changed placeholder */ style={{ flexDirection: 'row', gap: 8, alignItems: 'center', backgroundColor: s.done ? t.good + '33' : 'transparent', borderRadius: 12, padding: 4 }}>
                     <Pressable style={{ width: 32 }} hitSlop={6} accessibilityRole="button"
                       accessibilityLabel={s.warmup ? 'Warm-up set options' : `Set ${label} options`}
                       onPress={() => Alert.alert(s.warmup ? 'Warm-up set' : `Set ${label}`, b.ex.name, [
@@ -182,13 +186,16 @@ export default function Active() {
                     </Pressable>
                     <Txt size={13} color={t.sub} style={{ flex: 1, textAlign: 'center' }}>{p ? `${p.weight}×${p.reps}` : '—'}</Txt>
                     <TextInput style={cell} keyboardType="decimal-pad" value={s.weight} placeholder={sg ? String(sg.weight) : ''} placeholderTextColor={t.sub}
-                      onChangeText={v => edit(x => { x.blocks[bi].sets[si].weight = v; })} selectTextOnFocus />
+                      onChangeText={v => edit(x => { x.blocks[bi].sets[si].weight = v; })} selectTextOnFocus
+                      onFocus={() => setPlateFor(`${bi}:${si}`)} onBlur={() => setPlateFor(p => (p === `${bi}:${si}` ? null : p))} />
                     <TextInput style={{ ...cell, width: 56 }} keyboardType="number-pad" value={s.reps} placeholder={sg ? String(sg.reps) : ''} placeholderTextColor={t.sub}
                       onChangeText={v => edit(x => { x.blocks[bi].sets[si].reps = v; })} selectTextOnFocus />
                     <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: s.done }} onPress={() => toggle(bi, si)}
                       style={{ width: 40, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: s.done ? t.good : t.line }}>
                       <Txt weight="black" color={s.done ? '#fff' : t.sub}>✓</Txt>
                     </Pressable>
+                  </View>
+                  {plateW !== undefined && plateW > 0 && <Txt size={12} color={t.primaryDark} style={{ textAlign: 'center' }}>{plateText(plateW)}</Txt>}
                   </View>
                 );
               })}
@@ -233,7 +240,7 @@ export default function Active() {
         <ExerciseForm initial={d.blocks[editingEx].ex} onClose={saved => {
           setEditingEx(null);
           if (saved) edit(x => { // re-suggest every card of this exercise with the new rule
-            for (const b of x.blocks) if (b.ex.id === saved.id) { b.ex = saved; b.sugg = suggestFor(b.prev, saved); }
+            for (const b of x.blocks) if (b.ex.id === saved.id) { b.ex = saved; b.sugg = suggestFor(b.prev, saved, b.deload); }
           });
         }} />
       )}
@@ -258,6 +265,12 @@ function summarize(d: Draft) {
       return { name: b.ex.name, sets: sets.length, best: `${best.weight} kg × ${best.reps}` };
     }),
   };
+}
+
+function plateText(w: number) {
+  const p = plates(w);
+  if (p.underBar) return `🏋 ${w} kg is lighter than the 20 kg bar`;
+  return `🏋 Each side: ${p.plates.join(' + ') || 'just the bar'}${p.rest ? ` (+${p.rest} kg you can’t make)` : ''}`;
 }
 
 function Elapsed({ since }: { since: number }) {

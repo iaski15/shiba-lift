@@ -6,10 +6,13 @@ const round = (n: number) => Math.round(n * 100) / 100;
 
 // Double progression on the top-weight sets: hit rep_max on every one -> add weight, back to rep_min.
 // Otherwise same weight, +1 rep per set (capped). Lighter sets (warmups) are kept as they were.
-export function suggest(last: S[], r: Range): S[] {
+// `deload` (see `stalled`): top sets drop ~10%, rounded to the increment, same reps, and build back up from there.
+export function suggest(last: S[], r: Range, deload = false): S[] {
   if (!last.length) return [];
   const top = Math.max(...last.map(s => s.weight));
   const working = last.filter(s => s.weight === top);
+  const light = deloadWeight(top, r.increment);
+  if (deload && light > 0) return last.map(s => (s.weight === top ? { weight: light, reps: s.reps } : s));
   if (working.every(s => s.reps >= r.rep_max)) {
     return last.map(s => (s.weight === top ? { weight: round(top + r.increment), reps: r.rep_min } : s));
   }
@@ -74,7 +77,27 @@ export function overload(sessions: Session[]) {
   return { up, byWorkout, current, best };
 }
 
-export const DEFAULT_RANGE: Range = { rep_min: 8, rep_max: 12, increment: 2.5 };
+// Stalled = the last 3 sessions all at the same top weight, and neither of the later two got more total reps than the first.
+// Once deloaded the top weight changes, so it can't fire again until you're stuck at a new weight.
+export function stalled(sessions: Session[]) {
+  const l = sessions.slice(-3);
+  return l.length === 3 && l[0].top > 0 && l.every(s => s.top === l[0].top) && l[1].reps <= l[0].reps && l[2].reps <= l[0].reps;
+}
+export const deloadWeight = (top: number, inc: number) => Math.max(0, Math.min(top - inc, round(Math.round((top * 0.9) / inc) * inc)));
+
+// Plates per side of the bar, heaviest first. `rest` = weight that can't be made with these plates (per side).
+// ponytail: fixed 20 kg bar and standard kg plates; add a setting if someone has a 15 kg bar or lb plates.
+export const BAR = 20;
+const PLATES = [25, 20, 15, 10, 5, 2.5, 1.25];
+export function plates(total: number, bar = BAR) {
+  let side = round((total - bar) / 2);
+  const out: number[] = [];
+  if (side < 0) return { plates: out, rest: 0, underBar: true };
+  for (const p of PLATES) while (side >= p - 1e-9) { out.push(p); side = round(side - p); }
+  return { plates: out, rest: side, underBar: false };
+}
+
+export const DEFAULT_RANGE: Range ={ rep_min: 8, rep_max: 12, increment: 2.5 };
 
 // Text fields -> Range, or an error message to show.
 export function parseRange(f: { rep_min: string; rep_max: string; increment: string }): Range | string {
