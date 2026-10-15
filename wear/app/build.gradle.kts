@@ -12,8 +12,8 @@ android {
         applicationId = "com.shibalift.app"
         minSdk = 30 // Wear OS 3+ (Galaxy Watch 4 and newer)
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 3
+        versionName = "1.2.0"
     }
     signingConfigs {
         create("phone") {
