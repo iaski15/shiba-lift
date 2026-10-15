@@ -11,12 +11,15 @@ let opening = false;
 const pending: WatchAction[] = [];
 let timer: ReturnType<typeof setTimeout> | undefined;
 
-// Sends the current draft to the watch. Debounced: typing a weight is many draft saves.
+// Sends the current draft to the watch, and keeps the app alive while there is one (so Samsung's battery saver can't
+// kill it mid-workout and leave watch taps waiting). Debounced: typing a weight is many draft saves.
 export function publishWatch(db: SQLiteDatabase) {
   if (!ShibaWear) return;
   clearTimeout(timer);
   timer = setTimeout(async () => {
-    ShibaWear!.publish(watchState(await getDraft(db), await listRoutines(db), ack)).catch(() => {});
+    const d = await getDraft(db);
+    ShibaWear!.setWorkoutActive(!!d);
+    ShibaWear!.publish(watchState(d, await listRoutines(db), ack)).catch(() => {});
   }, 300);
 }
 

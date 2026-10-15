@@ -1,7 +1,9 @@
 package expo.modules.shibawear
 
+import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import androidx.core.content.ContextCompat
 import com.google.android.gms.wearable.DataClient
 import com.google.android.gms.wearable.DataEvent
 import com.google.android.gms.wearable.DataMapItem
@@ -41,6 +43,17 @@ class ShibaWearModule : Module() {
       data.putDataItem(req)
         .addOnSuccessListener { promise.resolve(null) }
         .addOnFailureListener { promise.reject(CodedException(it.message ?: "publish failed", it)) }
+    }
+
+    // Keeps the app process alive while a workout is going (WorkoutService). Starting can fail while the app is in the
+    // background (Android 12+ rules); the next call from the foreground retries.
+    Function("setWorkoutActive") { active: Boolean ->
+      if (active == WorkoutService.running) return@Function
+      val ctx = appContext.reactContext ?: return@Function
+      val intent = Intent(ctx, WorkoutService::class.java)
+      WorkoutService.running = active
+      if (!active) ctx.stopService(intent)
+      else try { ContextCompat.startForegroundService(ctx, intent) } catch (e: Exception) { WorkoutService.running = false }
     }
 
     AsyncFunction("pendingActions") { promise: Promise ->

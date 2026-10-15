@@ -75,7 +75,8 @@ adb -s <ip>:<port> install -r release/ShibaLift-Watch.apk
 ```
 `adb` is in the Android SDK's `platform-tools` folder. Afterwards you can turn Wireless debugging off again.
 
-- Taps made while the phone app is closed are kept and applied the next time it opens (a "start workout" only if it's under 2 minutes old). Keep the phone app open in the background during a workout for live sync; Samsung's battery saver may close it otherwise.
+- During a workout the phone shows a quiet "Workout in progress" notification: it keeps the app running in the background (so Samsung's battery saver doesn't close it) and the watch stays in live sync. It goes away when you finish or discard. On the watch, the workout shows as an ongoing activity on the watch face: tap it to jump back into Shiba Lift (allow notifications on the watch the first time you open the app).
+- Taps made while the phone app is closed (e.g. you swiped it away) are kept and applied the next time it opens (a "start workout" only if it's under 2 minutes old).
 - The rest-over notification from the phone also shows on the watch.
 
 ## Import from Hevy (CSV, no Pro needed)

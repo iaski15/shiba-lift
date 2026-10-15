@@ -1,7 +1,9 @@
 package com.shibalift.wear
 
+import android.Manifest
 import android.content.pm.ApplicationInfo
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -56,8 +58,10 @@ class MainActivity : ComponentActivity(), DataClient.OnDataChangedListener {
         super.onCreate(savedInstanceState)
         // Debug builds only: `adb shell am start -n com.shibalift.app/com.shibalift.wear.MainActivity --es demo '<state json>'`
         // shows a workout without a paired phone (taps still update the screen locally), for trying the UI on an emulator.
-        if (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0) intent.getStringExtra("demo")?.let { state = parseState(it) }
+        if (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0) intent.getStringExtra("demo")?.let { state = parseState(it).also { s -> showOngoing(this, s.workout) } }
         setContent { ShibaWatch(state, ::act) }
+        // For the watch-face shortcut during a workout (Ongoing.kt).
+        if (Build.VERSION.SDK_INT >= 33) requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 0)
     }
 
     override fun onResume() {
@@ -80,7 +84,7 @@ class MainActivity : ComponentActivity(), DataClient.OnDataChangedListener {
 
     private fun read(item: DataItem) {
         val json = DataMapItem.fromDataItem(item).dataMap.getString("json") ?: return
-        state = parseState(json).also { deleteHandled(it.ack) }
+        state = parseState(json).also { deleteHandled(it.ack); showOngoing(this, it.workout) }
     }
 
     // The phone has handled every tap up to `ack`: drop those data items so they don't pile up.

@@ -1,0 +1,13 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+  <!-- Normal (install-time) permission; satisfies connectedDevice's runtime prerequisite on Android 14+. -->
+  <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
+
+  <application>
+    <service
+      android:name="expo.modules.shibawear.WorkoutService"
+      android:exported="false"
+      android:foregroundServiceType="connectedDevice" />
+  </application>
+</manifest>

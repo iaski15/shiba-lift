@@ -46,4 +46,5 @@ dependencies {
     implementation("androidx.activity:activity-compose:1.12.4")
     implementation("androidx.wear.compose:compose-material3:1.6.2")
     implementation("androidx.wear.compose:compose-foundation:1.6.2")
+    implementation("androidx.wear:wear-ongoing:1.1.0")
 }
